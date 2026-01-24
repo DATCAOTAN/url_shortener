@@ -1,0 +1,103 @@
+### URL Shortener API Test File
+### Use with REST Client extension or run with curl
+
+### ============================================
+### Health Check
+### ============================================
+
+GET http://localhost:3000/api/health
+
+### ============================================
+### Create Short URL
+### ============================================
+
+POST http://localhost:3000/api/shorten
+Content-Type: application/json
+
+{
+    "url": "https://www.google.com/search?q=rust+programming+language"
+}
+
+### ============================================
+### Create another URL
+### ============================================
+
+POST http://localhost:3000/api/shorten
+Content-Type: application/json
+
+{
+    "url": "https://doc.rust-lang.org/book/"
+}
+
+### ============================================
+### Create URL with long path
+### ============================================
+
+POST http://localhost:3000/api/shorten
+Content-Type: application/json
+
+{
+    "url": "https://github.com/tokio-rs/axum/blob/main/examples/key-value-store/src/main.rs"
+}
+
+### ============================================
+### List all URLs
+### ============================================
+
+GET http://localhost:3000/api/urls
+
+### ============================================
+### Test Redirect (replace 1 with actual short code)
+### This will return a 302 redirect
+### ============================================
+
+GET http://localhost:3000/1
+
+### ============================================
+### Invalid URL (should return 400 Bad Request)
+### ============================================
+
+POST http://localhost:3000/api/shorten
+Content-Type: application/json
+
+{
+    "url": "not-a-valid-url"
+}
+
+### ============================================
+### Empty URL (should return 400 Bad Request)
+### ============================================
+
+POST http://localhost:3000/api/shorten
+Content-Type: application/json
+
+{
+    "url": ""
+}
+
+### ============================================
+### Non-existent short code (should return 404)
+### ============================================
+
+GET http://localhost:3000/nonexistent123
+
+### ============================================
+### CURL Commands for Terminal Testing
+### ============================================
+
+# Health Check:
+# curl http://localhost:3000/api/health
+
+# Create Short URL:
+# curl -X POST http://localhost:3000/api/shorten \
+#   -H "Content-Type: application/json" \
+#   -d '{"url": "https://www.google.com"}'
+
+# List URLs:
+# curl http://localhost:3000/api/urls
+
+# Test Redirect (use -v to see 302):
+# curl -v http://localhost:3000/1
+
+# Follow Redirect:
+# curl -L http://localhost:3000/1
