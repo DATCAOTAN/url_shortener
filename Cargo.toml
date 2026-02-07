@@ -13,6 +13,9 @@ tokio = { version = "1.0", features = ["full"] }
 # Thư viện kết nối PostgreSQL
 sqlx = { version = "0.8.6", features = ["runtime-tokio", "tls-rustls", "postgres", "chrono"] }
 
+# Hash password
+bcrypt = "0.15"
+
 # Thư viện kết nối Redis để redirect cực nhanh
 redis = { version = "1.0.2", features = ["tokio-comp"] }
 
