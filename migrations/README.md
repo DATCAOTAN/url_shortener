@@ -146,6 +146,6 @@ docker exec -i url_db psql -U user -d shortener_db < scripts/seed.sql
 # Kết nối vào PostgreSQL
 docker exec -it url_db psql -U user -d shortener_db
 
-# Xem danh sách tables
-docker exec url_db psql -U user -d shortener_db -c "\dt"
+# Xem data
+docker exec -it url_db psql -U user -d shortener_db -c "SELECT * FROM users;"
 ```
