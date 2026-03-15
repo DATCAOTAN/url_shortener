@@ -9,9 +9,12 @@ mod dtos;
 mod db;
 mod routes;
 mod handlers;
+mod error;
+mod middleware;
 mod services;
 mod repositories;
 mod models;
+mod utils;
 
 #[tokio::main]
 async fn main() {

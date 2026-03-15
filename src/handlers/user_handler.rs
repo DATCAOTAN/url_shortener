@@ -1,25 +1,39 @@
 use axum::{
+    Extension,
     Json,
     extract::{Path, State},
-    http::StatusCode,
 };
 use sqlx::PgPool;
+use crate::error::{AppError, AppResult};
 use crate::services::user_service;
+use crate::dtos::claims::Claims;
 use crate::models::user::User;
 use crate::dtos::user::{LoginResponse, LoginUser, RefreshTokenRequest, RefreshTokenResponse, RegisterUser};
 
 pub async fn get_user(
     State(pool): State<PgPool>,
     Path(id): Path<i64>,
-) -> Result<Json<User>, (StatusCode, String)> {
+) -> AppResult<Json<User>> {
     match user_service::get_user(&pool, id).await {
         Ok(user) => Ok(Json(user)),
-        Err(sqlx::Error::RowNotFound) => {
-            Err((StatusCode::NOT_FOUND, format!("User {} not found", id)))
-        }
+        Err(sqlx::Error::RowNotFound) => Err(AppError::NotFound(format!("User {} not found", id))),
         Err(e) => {
             eprintln!("get_user database error: {}", e);
-            Err((StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string()))
+            Err(AppError::Database(e))
+        }
+    }
+}
+
+pub async fn get_me(
+    State(pool): State<PgPool>,
+    Extension(claims): Extension<Claims>,
+) -> AppResult<Json<User>> {
+    match user_service::get_user(&pool, claims.id).await {
+        Ok(user) => Ok(Json(user)),
+        Err(sqlx::Error::RowNotFound) => Err(AppError::NotFound(format!("User {} not found", claims.id))),
+        Err(e) => {
+            eprintln!("get_me database error: {}", e);
+            Err(AppError::Database(e))
         }
     }
 }
@@ -27,12 +41,12 @@ pub async fn get_user(
 pub async fn register_user(
     State(pool): State<PgPool>,
     Json(payload): Json<RegisterUser>,
-) -> Result<Json<User>, (StatusCode, String)> {
+) -> AppResult<Json<User>> {
     match user_service::register_user(&pool, &payload.username, &payload.email, &payload.password).await {
         Ok(user) => Ok(Json(user)),
         Err(e) => {
             eprintln!("register_user error: {}", e);
-            Err((StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string()))
+            Err(AppError::Database(e))
         }
     }
 }
@@ -40,18 +54,16 @@ pub async fn register_user(
 pub async fn login_user(
     State(pool): State<PgPool>,
     Json(payload): Json<LoginUser>,
-) -> Result<Json<LoginResponse>, (StatusCode, String)> {
+) -> AppResult<Json<LoginResponse>> {
     match user_service::login_user(&pool, &payload.email, &payload.password).await {
         Ok(login_response) => Ok(Json(login_response)),
-        Err(sqlx::Error::RowNotFound) => {
-            Err((StatusCode::UNAUTHORIZED, "Thong tin dang nhap sai".to_string()))
-        }
+        Err(sqlx::Error::RowNotFound) => Err(AppError::Unauthorized("Thong tin dang nhap sai".to_string())),
         Err(sqlx::Error::Io(io_err)) if io_err.to_string() == "PASSWORD_INVALID" => {
-            Err((StatusCode::UNAUTHORIZED, "Password sai".to_string()))
+            Err(AppError::Unauthorized("Password sai".to_string()))
         }
         Err(e) => {
             eprintln!("login_user error: {}", e);
-            Err((StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string()))
+            Err(AppError::Database(e))
         }
     }
 }
@@ -59,15 +71,15 @@ pub async fn login_user(
 pub async fn refresh_token(
     State(pool): State<PgPool>,
     Json(payload): Json<RefreshTokenRequest>,
-) -> Result<Json<RefreshTokenResponse>, (StatusCode, String)> {
+) -> AppResult<Json<RefreshTokenResponse>> {
     match user_service::refresh_access_token(&pool, &payload.refresh_token).await {
         Ok(response) => Ok(Json(response)),
         Err(sqlx::Error::Io(io_err)) if io_err.to_string() == "REFRESH_TOKEN_INVALID" => {
-            Err((StatusCode::UNAUTHORIZED, "Refresh token khong hop le".to_string()))
+            Err(AppError::Unauthorized("Refresh token khong hop le".to_string()))
         }
         Err(e) => {
             eprintln!("refresh_token error: {}", e);
-            Err((StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string()))
+            Err(AppError::Database(e))
         }
     }
 }
