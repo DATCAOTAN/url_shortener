@@ -44,6 +44,57 @@ docker-compose up -d
 cargo run
 ```
 
+## 2.1) Chay full bang Docker Compose (khuyen dung)
+
+Project da duoc set de chay ca `app + postgres + redis` trong Docker.
+
+Lenh chay:
+
+```bash
+docker compose up --build -d
+```
+
+Kiem tra trang thai:
+
+```bash
+docker compose ps
+```
+
+API se san sang tai:
+
+```text
+http://127.0.0.1:8080
+```
+
+Kiem tra nhanh:
+
+```bash
+curl http://127.0.0.1:8080/
+```
+
+Doc log app:
+
+```bash
+docker compose logs -f app
+```
+
+Dung va xoa container:
+
+```bash
+docker compose down
+```
+
+Xoa ca volume (clean DB):
+
+```bash
+docker compose down -v
+```
+
+Ghi chu quan trong:
+
+- Trong container, `DATABASE_URL` phai tro vao host service `db:5432` (khong dung localhost).
+- Luc startup, service `app` tu chay migration voi `sqlx migrate run` roi moi `cargo run`.
+
 ## 3) Quy trinh tao mot API moi (template chuan)
 
 Vi du: tao API `GET /users/me` (protected).

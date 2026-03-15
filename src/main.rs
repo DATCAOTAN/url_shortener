@@ -38,14 +38,16 @@ async fn main() {
         .merge(user_route::routes())
         .with_state(db_pool);
 
-    let listener = match tokio::net::TcpListener::bind("127.0.0.1:8080").await {
+    let bind_addr = env::var("BIND_ADDR").unwrap_or_else(|_| "0.0.0.0:8080".to_string());
+
+    let listener = match tokio::net::TcpListener::bind(&bind_addr).await {
         Ok(listener) => listener,
         Err(e) => {
-            eprintln!("Failed to bind 127.0.0.1:8080: {}", e);
+            eprintln!("Failed to bind {}: {}", bind_addr, e);
             return;
         }
     };
-    println!("Server started at http://127.0.0.1:8080");
+    println!("Server started at http://{}", bind_addr);
 
     if let Err(e) = serve(listener, app).await {
         eprintln!("Server error: {}", e);

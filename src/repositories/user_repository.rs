@@ -50,13 +50,12 @@ pub async fn save_refresh_token(
 }
 
 pub async fn is_refresh_token_active(pool: &PgPool, token_hash: &str) -> Result<bool, sqlx::Error> {
-    let exists = sqlx::query_scalar::<_, i64>(
-        "SELECT 1 FROM refresh_tokens WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > NOW() LIMIT 1",
+    let exists = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM refresh_tokens WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > NOW())",
     )
     .bind(token_hash)
-    .fetch_optional(pool)
-    .await?
-    .is_some();
+    .fetch_one(pool)
+    .await?;
 
     Ok(exists)
 }

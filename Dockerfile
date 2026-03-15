@@ -27,4 +27,6 @@ COPY . .
 
 # 5. Lệnh chạy mặc định:
 # "cargo watch -x run" sẽ theo dõi file thay đổi và chạy lại lệnh "cargo run"
+EXPOSE 8080
+
 CMD ["cargo", "watch", "-x", "run"]
