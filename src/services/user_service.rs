@@ -127,3 +127,22 @@ pub async fn refresh_access_token(
 
     Ok(RefreshTokenResponse { access_token })
 }
+
+pub async fn logout_user(pool: &PgPool, refresh_token: &str) -> Result<(), sqlx::Error> {
+    let refresh_secret = std::env::var("JWT_REFRESH_SECRET")
+        .map_err(|_| sqlx::Error::Io(std::io::Error::other("Missing JWT_REFRESH_SECRET")))?;
+
+    decode::<Claims>(
+        refresh_token,
+        &DecodingKey::from_secret(refresh_secret.as_bytes()),
+        &Validation::default(),
+    )
+    .map_err(|_| sqlx::Error::Io(std::io::Error::other("REFRESH_TOKEN_INVALID")))?;
+
+    let revoked = user_repository::revoke_refresh_token(pool, refresh_token).await?;
+    if !revoked {
+        return Err(sqlx::Error::Io(std::io::Error::other("REFRESH_TOKEN_INVALID")));
+    }
+
+    Ok(())
+}

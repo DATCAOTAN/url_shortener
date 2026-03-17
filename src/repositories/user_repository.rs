@@ -59,3 +59,14 @@ pub async fn is_refresh_token_active(pool: &PgPool, token_hash: &str) -> Result<
 
     Ok(exists)
 }
+
+pub async fn revoke_refresh_token(pool: &PgPool, token_hash: &str) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query(
+        "UPDATE refresh_tokens SET revoked_at = NOW() WHERE token_hash = $1 AND revoked_at IS NULL",
+    )
+    .bind(token_hash)
+    .execute(pool)
+    .await?;
+
+    Ok(result.rows_affected() > 0)
+}

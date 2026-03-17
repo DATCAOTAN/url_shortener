@@ -10,7 +10,8 @@ pub fn routes() -> Router<sqlx::PgPool> {
     let public_routes = Router::new()
         .route("/register", post(user_handler::register_user))
         .route("/login", post(user_handler::login_user))
-        .route("/refresh", post(user_handler::refresh_token));
+        .route("/refresh", post(user_handler::refresh_token))
+        .route("/logout", post(user_handler::logout_user));
 
     let protected_routes = Router::new()
         .route("/users/me", get(user_handler::get_me))
