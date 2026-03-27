@@ -54,7 +54,7 @@ impl From<User> for UserResponse {
         Self {
             id: user.id,
             username: user.username,
-            email: user.email,
+            email: user.email.unwrap_or_default(),
             role: user.role,
             is_active: user.is_active,
         }

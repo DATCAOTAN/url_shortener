@@ -1,0 +1,56 @@
+@baseUrl = http://localhost:8080
+@accessToken=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3NzQ1NzI2NDMsImV4cCI6MTc3NDU3MzU0M30.WqNlOSiyXclWuidLgv5rozqLJMqOax7mv6XuUwTzzgU
+@fromDate = 2026-03-01
+@toDate = 2026-03-31
+
+### Health
+GET {{baseUrl}}/
+
+### Register
+POST {{baseUrl}}/register
+Content-Type: application/json
+
+{
+  "username": "testuser",
+  "email": "test@example.com",
+  "password": "password123"
+}
+
+### Login (returns access_token)
+POST {{baseUrl}}/login
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "password123"
+}
+
+### Create short link
+POST {{baseUrl}}/links
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "original_url": "https://google.com",
+  "title": "Google"
+}
+
+### List my links
+GET {{baseUrl}}/links/my-links
+Authorization: Bearer {{accessToken}}
+
+### Soft delete link
+DELETE {{baseUrl}}/links/1
+Authorization: Bearer {{accessToken}}
+
+### Daily analytics (all my links)
+GET {{baseUrl}}/links/analytics?from={{fromDate}}&to={{toDate}}
+Authorization: Bearer {{accessToken}}
+
+### Redirect
+# Replace SHORT_CODE with a value from the create response
+GET {{baseUrl}}/2
+
+### Redirect stress (repeat manually by running this request multiple times)
+# After running several times, check analytics totals for the date range.
+GET {{baseUrl}}/SHORT_CODE

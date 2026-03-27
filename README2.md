@@ -41,7 +41,8 @@ Chay app:
 
 ```bash
 docker-compose up -d
-cargo run
+
+
 ```
 
 ## 2.1) Chay full bang Docker Compose (khuyen dung)

@@ -4,9 +4,10 @@ use axum::{
     routing::{get, post},
 };
 use crate::handlers::user_handler;
-use crate::middleware::auth_middleware::auth_guard;
+use crate::middleware::auth_middleware::auth_middleware;
+use crate::state::AppState;
 
-pub fn routes() -> Router<sqlx::PgPool> {
+pub fn routes() -> Router<AppState> {
     let public_routes = Router::new()
         .route("/register", post(user_handler::register_user))
         .route("/login", post(user_handler::login_user))
@@ -16,7 +17,7 @@ pub fn routes() -> Router<sqlx::PgPool> {
     let protected_routes = Router::new()
         .route("/users/me", get(user_handler::get_me))
         .route("/users/{id}", get(user_handler::get_user))
-        .route_layer(middleware::from_fn(auth_guard));
+        .route_layer(middleware::from_fn(auth_middleware));
 
     public_routes.merge(protected_routes)
 }

@@ -1,8 +1,9 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Claims {
-    pub id: i64,
     pub sub: String,
+    pub role: String,
+    pub iat: usize,
     pub exp: usize,
 }
