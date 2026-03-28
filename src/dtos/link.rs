@@ -1,15 +1,28 @@
-// use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
-// #[derive(Deserialize)]
-// pub struct CreateLinkRequest {
-//     pub original_url: String,
-//     pub title: Option<String>,
-// }
+#[derive(Serialize, Deserialize, ToSchema)]
+pub struct CreateLinkRequest {
+    pub original_url: String,
+    pub title: Option<String>,
+}
 
-// #[derive(Serialize)]
-// pub struct LinkResponse {
-//     pub id: i32,
-//     pub short_code: String,
-//     pub original_url: String,
-//     pub title: Option<String>,
-// }
+#[derive(Serialize, Deserialize, ToSchema)]
+pub struct LinkResponse {
+    pub id: i64,
+    pub short_code: String,
+    pub original_url: String,
+    pub title: Option<String>,
+    pub click_count: i64,
+}
+
+#[derive(Serialize, Deserialize, ToSchema)]
+pub struct DeleteLinkResponse {
+    pub message: String,
+}
+
+#[derive(Serialize, Deserialize, ToSchema)]
+pub struct DailyAnalyticsResponse {
+    pub date: String,
+    pub total_clicks: i64,
+}

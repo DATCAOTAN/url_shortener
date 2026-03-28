@@ -36,8 +36,9 @@ services:
         condition: service_started
     environment:
       DATABASE_URL: postgresql://user:password@db:5432/shortener_db
-      JWT_SECRET: your_access_secret
-      JWT_REFRESH_SECRET: your_refresh_secret
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: replace_with_strong_access_secret_32_chars_min
+      JWT_REFRESH_SECRET: replace_with_strong_refresh_secret_32_chars_min
       ACCESS_TOKEN_EXPIRE: "900"
       REFRESH_TOKEN_EXPIRE: "2592000"
     ports:

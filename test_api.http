@@ -1,0 +1,170 @@
+@baseUrl = http://localhost:8080
+
+### Test users
+@userUsername = testuser
+@userEmail = test@example.com
+@userPassword = password123
+
+@adminUsername = adminuser
+@adminEmail = admin@example.com
+@adminPassword = password123
+
+### Tokens (paste from login responses)
+@userAccessToken = <paste_user_access_token_here>
+@userRefreshToken = <paste_user_refresh_token_here>
+@adminAccessToken = eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMiIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc3NDY2NTI5MCwiZXhwIjoxNzc0NjY2MTkwLCJqdGkiOm51bGx9.c7v3baChBqfGwUhcXHfD83DCAw22Rml9vtDTN8BiVyA
+@adminRefreshToken = eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMiIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc3NDY2NTI5MCwiZXhwIjoxNzc3MjU3MjkwLCJqdGkiOiIxYTJmNjFlMy0zMjU2LTQ1NDctYWFmMy1iZjVjNDVkZWJjNjYifQ.sF4YN07xiaX2iawGuoAG6aMe4EYvRRS4qYl8HhQyAd8
+
+### IDs and short code (paste from responses)
+@userId = 1
+@adminId = 12
+@linkId = 1
+@shortCode = rust
+
+@fromDate = 2026-03-01
+@toDate = 2026-03-31
+
+##################################################
+### PUBLIC
+##################################################
+
+### Root
+GET {{baseUrl}}/
+
+### Liveness
+GET {{baseUrl}}/health/live
+
+### Readiness
+GET {{baseUrl}}/health/ready
+
+### OpenAPI JSON
+GET {{baseUrl}}/api-docs/openapi.json
+
+### Docs hint
+GET {{baseUrl}}/docs
+
+### Redirect by short code
+GET {{baseUrl}}/{{shortCode}}
+
+
+##################################################
+### AUTH
+##################################################
+
+### Register user
+POST {{baseUrl}}/register
+Content-Type: application/json
+
+{
+  "username": "{{userUsername}}",
+  "email": "{{userEmail}}",
+  "password": "{{userPassword}}"
+}
+
+### Register admin account (then promote role in DB if needed)
+POST {{baseUrl}}/register
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+### Login user (copy access_token, refresh_token)
+POST {{baseUrl}}/login
+Content-Type: application/json
+
+{
+  "email": "{{userEmail}}",
+  "password": "{{userPassword}}"
+}
+
+### Login admin (copy access_token, refresh_token)
+POST {{baseUrl}}/login
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+### Refresh user access token
+POST {{baseUrl}}/refresh
+Content-Type: application/json
+
+{
+  "refresh_token": "{{userRefreshToken}}"
+}
+
+### Logout user
+POST {{baseUrl}}/logout
+Content-Type: application/json
+
+{
+  "refresh_token": "{{userRefreshToken}}"
+}
+
+
+##################################################
+### USER APIs (Bearer user/admin)
+##################################################
+
+### Get my profile
+GET {{baseUrl}}/users/me
+Authorization: Bearer {{userAccessToken}}
+
+### Get user by id (owner-only on user route)
+GET {{baseUrl}}/users/{{userId}}
+Authorization: Bearer {{userAccessToken}}
+
+### Create short link
+POST {{baseUrl}}/links
+Content-Type: application/json
+Authorization: Bearer {{userAccessToken}}
+
+{
+  "original_url": "https://google.com",
+  "title": "Google"
+}
+
+### List my links
+GET {{baseUrl}}/links/my-links
+Authorization: Bearer {{userAccessToken}}
+
+### Daily analytics (all my links)
+GET {{baseUrl}}/links/analytics?from={{fromDate}}&to={{toDate}}
+Authorization: Bearer {{userAccessToken}}
+
+### Soft delete my link
+DELETE {{baseUrl}}/links/5
+Authorization: Bearer {{userAccessToken}}
+
+
+##################################################
+### ADMIN APIs (Bearer admin only)
+##################################################
+
+### List all users
+GET {{baseUrl}}/admin/users
+Authorization: Bearer {{adminAccessToken}}
+
+### Get one user by id
+GET {{baseUrl}}/admin/users/{{userId}}
+Authorization: Bearer {{adminAccessToken}}
+
+### Soft delete user
+DELETE {{baseUrl}}/admin/users/{{userId}}
+Authorization: Bearer {{adminAccessToken}}
+
+### Hard delete user
+DELETE {{baseUrl}}/admin/users/{{userId}}/hard
+Authorization: Bearer {{adminAccessToken}}
+
+### List all links
+GET {{baseUrl}}/admin/links
+Authorization: Bearer {{adminAccessToken}}
+
+### Disable link by id
+DELETE {{baseUrl}}/admin/links/{{linkId}}
+Authorization: Bearer {{adminAccessToken}}
