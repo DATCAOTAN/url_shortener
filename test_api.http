@@ -1,34 +1,127 @@
 @baseUrl = http://localhost:8080
-@accessToken=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3NzQ1NzI2NDMsImV4cCI6MTc3NDU3MzU0M30.WqNlOSiyXclWuidLgv5rozqLJMqOax7mv6XuUwTzzgU
+
+### Test users
+@userUsername = testuser
+@userEmail = test@example.com
+@userPassword = password123
+
+@adminUsername = adminuser
+@adminEmail = admin@example.com
+@adminPassword = password123
+
+### Tokens (paste from login responses)
+@userAccessToken = <paste_user_access_token_here>
+@userRefreshToken = <paste_user_refresh_token_here>
+@adminAccessToken = eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMiIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc3NDY2NTI5MCwiZXhwIjoxNzc0NjY2MTkwLCJqdGkiOm51bGx9.c7v3baChBqfGwUhcXHfD83DCAw22Rml9vtDTN8BiVyA
+@adminRefreshToken = eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMiIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc3NDY2NTI5MCwiZXhwIjoxNzc3MjU3MjkwLCJqdGkiOiIxYTJmNjFlMy0zMjU2LTQ1NDctYWFmMy1iZjVjNDVkZWJjNjYifQ.sF4YN07xiaX2iawGuoAG6aMe4EYvRRS4qYl8HhQyAd8
+
+### IDs and short code (paste from responses)
+@userId = 1
+@adminId = 12
+@linkId = 1
+@shortCode = rust
+
 @fromDate = 2026-03-01
 @toDate = 2026-03-31
 
-### Health
+##################################################
+### PUBLIC
+##################################################
+
+### Root
 GET {{baseUrl}}/
 
-### Register
+### Liveness
+GET {{baseUrl}}/health/live
+
+### Readiness
+GET {{baseUrl}}/health/ready
+
+### OpenAPI JSON
+GET {{baseUrl}}/api-docs/openapi.json
+
+### Docs hint
+GET {{baseUrl}}/docs
+
+### Redirect by short code
+GET {{baseUrl}}/{{shortCode}}
+
+
+##################################################
+### AUTH
+##################################################
+
+### Register user
 POST {{baseUrl}}/register
 Content-Type: application/json
 
 {
-  "username": "testuser",
-  "email": "test@example.com",
-  "password": "password123"
+  "username": "{{userUsername}}",
+  "email": "{{userEmail}}",
+  "password": "{{userPassword}}"
 }
 
-### Login (returns access_token)
+### Register admin account (then promote role in DB if needed)
+POST {{baseUrl}}/register
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+### Login user (copy access_token, refresh_token)
 POST {{baseUrl}}/login
 Content-Type: application/json
 
 {
-  "email": "test@example.com",
-  "password": "password123"
+  "email": "{{userEmail}}",
+  "password": "{{userPassword}}"
 }
+
+### Login admin (copy access_token, refresh_token)
+POST {{baseUrl}}/login
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+### Refresh user access token
+POST {{baseUrl}}/refresh
+Content-Type: application/json
+
+{
+  "refresh_token": "{{userRefreshToken}}"
+}
+
+### Logout user
+POST {{baseUrl}}/logout
+Content-Type: application/json
+
+{
+  "refresh_token": "{{userRefreshToken}}"
+}
+
+
+##################################################
+### USER APIs (Bearer user/admin)
+##################################################
+
+### Get my profile
+GET {{baseUrl}}/users/me
+Authorization: Bearer {{userAccessToken}}
+
+### Get user by id (owner-only on user route)
+GET {{baseUrl}}/users/{{userId}}
+Authorization: Bearer {{userAccessToken}}
 
 ### Create short link
 POST {{baseUrl}}/links
 Content-Type: application/json
-Authorization: Bearer {{accessToken}}
+Authorization: Bearer {{userAccessToken}}
 
 {
   "original_url": "https://google.com",
@@ -37,20 +130,41 @@ Authorization: Bearer {{accessToken}}
 
 ### List my links
 GET {{baseUrl}}/links/my-links
-Authorization: Bearer {{accessToken}}
-
-### Soft delete link
-DELETE {{baseUrl}}/links/1
-Authorization: Bearer {{accessToken}}
+Authorization: Bearer {{userAccessToken}}
 
 ### Daily analytics (all my links)
 GET {{baseUrl}}/links/analytics?from={{fromDate}}&to={{toDate}}
-Authorization: Bearer {{accessToken}}
+Authorization: Bearer {{userAccessToken}}
 
-### Redirect
-# Replace SHORT_CODE with a value from the create response
-GET {{baseUrl}}/2
+### Soft delete my link
+DELETE {{baseUrl}}/links/5
+Authorization: Bearer {{userAccessToken}}
 
-### Redirect stress (repeat manually by running this request multiple times)
-# After running several times, check analytics totals for the date range.
-GET {{baseUrl}}/SHORT_CODE
+
+##################################################
+### ADMIN APIs (Bearer admin only)
+##################################################
+
+### List all users
+GET {{baseUrl}}/admin/users
+Authorization: Bearer {{adminAccessToken}}
+
+### Get one user by id
+GET {{baseUrl}}/admin/users/{{userId}}
+Authorization: Bearer {{adminAccessToken}}
+
+### Soft delete user
+DELETE {{baseUrl}}/admin/users/{{userId}}
+Authorization: Bearer {{adminAccessToken}}
+
+### Hard delete user
+DELETE {{baseUrl}}/admin/users/{{userId}}/hard
+Authorization: Bearer {{adminAccessToken}}
+
+### List all links
+GET {{baseUrl}}/admin/links
+Authorization: Bearer {{adminAccessToken}}
+
+### Disable link by id
+DELETE {{baseUrl}}/admin/links/{{linkId}}
+Authorization: Bearer {{adminAccessToken}}

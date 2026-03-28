@@ -10,6 +10,19 @@ use crate::dtos::user::{LoginResponse, LoginUser, LogoutRequest, LogoutResponse,
 use crate::state::AppState;
 use crate::utils::validation::{validate_email, validate_password, validate_username};
 
+#[utoipa::path(
+    get,
+    path = "/users/{id}",
+    tag = "Users",
+    security(("bearer_auth" = [])),
+    params(("id" = i64, Path, description = "User ID")),
+    responses(
+        (status = 200, description = "User details", body = UserResponse),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 403, description = "Forbidden", body = crate::error::ErrorResponse),
+        (status = 404, description = "User not found", body = crate::error::ErrorResponse)
+    )
+)]
 pub async fn get_user(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -31,6 +44,17 @@ pub async fn get_user(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/users/me",
+    tag = "Users",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Current user", body = UserResponse),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 404, description = "User not found", body = crate::error::ErrorResponse)
+    )
+)]
 pub async fn get_me(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -47,6 +71,16 @@ pub async fn get_me(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/register",
+    tag = "Auth",
+    request_body = RegisterUser,
+    responses(
+        (status = 200, description = "Register success", body = UserResponse),
+        (status = 400, description = "Invalid input", body = crate::error::ErrorResponse)
+    )
+)]
 pub async fn register_user(
     State(state): State<AppState>,
     Json(payload): Json<RegisterUser>,
@@ -70,6 +104,17 @@ pub async fn register_user(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/login",
+    tag = "Auth",
+    request_body = LoginUser,
+    responses(
+        (status = 200, description = "Login success", body = LoginResponse),
+        (status = 400, description = "Invalid input", body = crate::error::ErrorResponse),
+        (status = 401, description = "Invalid credentials", body = crate::error::ErrorResponse)
+    )
+)]
 pub async fn login_user(
     State(state): State<AppState>,
     Json(payload): Json<LoginUser>,
@@ -87,6 +132,9 @@ pub async fn login_user(
         Err(sqlx::Error::Io(io_err)) if io_err.to_string() == "PASSWORD_INVALID" => {
             Err(AppError::Unauthorized("Password sai".to_string()))
         }
+        Err(sqlx::Error::Io(io_err)) if io_err.to_string() == "USER_DISABLED" => {
+            Err(AppError::Forbidden("Tai khoan da bi vo hieu hoa".to_string()))
+        }
         Err(e) => {
             eprintln!("login_user error: {}", e);
             Err(e.into())
@@ -94,6 +142,16 @@ pub async fn login_user(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/refresh",
+    tag = "Auth",
+    request_body = RefreshTokenRequest,
+    responses(
+        (status = 200, description = "Refresh success", body = RefreshTokenResponse),
+        (status = 401, description = "Invalid refresh token", body = crate::error::ErrorResponse)
+    )
+)]
 pub async fn refresh_token(
     State(state): State<AppState>,
     Json(payload): Json<RefreshTokenRequest>,
@@ -103,6 +161,9 @@ pub async fn refresh_token(
         Err(sqlx::Error::Io(io_err)) if io_err.to_string() == "REFRESH_TOKEN_INVALID" => {
             Err(AppError::Unauthorized("Refresh token khong hop le".to_string()))
         }
+        Err(sqlx::Error::Io(io_err)) if io_err.to_string() == "USER_DISABLED" => {
+            Err(AppError::Forbidden("Tai khoan da bi vo hieu hoa".to_string()))
+        }
         Err(e) => {
             eprintln!("refresh_token error: {}", e);
             Err(e.into())
@@ -110,6 +171,16 @@ pub async fn refresh_token(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/logout",
+    tag = "Auth",
+    request_body = LogoutRequest,
+    responses(
+        (status = 200, description = "Logout success", body = LogoutResponse),
+        (status = 401, description = "Invalid refresh token", body = crate::error::ErrorResponse)
+    )
+)]
 pub async fn logout_user(
     State(state): State<AppState>,
     Json(payload): Json<LogoutRequest>,

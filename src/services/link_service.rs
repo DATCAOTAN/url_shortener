@@ -76,8 +76,16 @@ pub async fn get_user_links(pool: &PgPool, user_id: i64) -> Result<Vec<Link>, Er
     link_repository::get_all_by_user(pool, user_id).await
 }
 
+pub async fn get_all_links(pool: &PgPool) -> Result<Vec<Link>, Error> {
+    link_repository::get_all(pool).await
+}
+
 pub async fn soft_delete_link(pool: &PgPool, user_id: i64, link_id: i64) -> Result<Option<Link>, Error> {
     link_repository::soft_delete_by_owner(pool, link_id, user_id).await
+}
+
+pub async fn admin_soft_delete_link(pool: &PgPool, link_id: i64) -> Result<Option<Link>, Error> {
+    link_repository::soft_delete_by_id(pool, link_id).await
 }
 
 pub async fn get_daily_analytics(

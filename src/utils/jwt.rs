@@ -1,18 +1,33 @@
 use crate::dtos::claims::Claims;
 use crate::error::AppError;
 use chrono::{Duration, Utc, TimeZone};
-use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
+use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use std::env;
+use uuid::Uuid;
 
-fn get_env_var(key: &str, default: &str) -> String {
-    env::var(key).unwrap_or_else(|_| default.to_string())
+fn get_required_secret(key: &str) -> Result<String, AppError> {
+    let value = env::var(key)
+        .map_err(|_| AppError::Internal(format!("Missing required environment variable: {key}")))?;
+
+    if value.len() < 32 {
+        return Err(AppError::Internal(format!(
+            "{key} must be at least 32 characters for secure JWT signing"
+        )));
+    }
+
+    Ok(value)
+}
+
+fn get_env_i64(key: &str, default: i64) -> i64 {
+    env::var(key)
+        .ok()
+        .and_then(|v| v.parse::<i64>().ok())
+        .unwrap_or(default)
 }
 
 pub fn encode_access_token(sub: String, role: String) -> Result<String, AppError> {
-    let access_secret = get_env_var("JWT_SECRET", "secret");
-    let access_exp_seconds = get_env_var("ACCESS_TOKEN_EXPIRE", "900")
-        .parse::<i64>()
-        .unwrap_or(900);
+    let access_secret = get_required_secret("JWT_SECRET")?;
+    let access_exp_seconds = get_env_i64("ACCESS_TOKEN_EXPIRE", 900);
     
     let now = Utc::now();
     let expire = now + Duration::seconds(access_exp_seconds);
@@ -22,10 +37,11 @@ pub fn encode_access_token(sub: String, role: String) -> Result<String, AppError
         role,
         iat: now.timestamp() as usize,
         exp: expire.timestamp() as usize,
+        jti: None,
     };
 
     encode(
-        &Header::default(),
+        &Header::new(Algorithm::HS256),
         &claims,
         &EncodingKey::from_secret(access_secret.as_bytes()),
     )
@@ -33,12 +49,12 @@ pub fn encode_access_token(sub: String, role: String) -> Result<String, AppError
 }
 
 pub fn encode_refresh_token(sub: String, role: String, created_at: i64) -> Result<(String, i64), AppError> {
-    let refresh_secret = get_env_var("JWT_REFRESH_SECRET", "refresh_secret");
-    let refresh_exp_seconds = get_env_var("REFRESH_TOKEN_EXPIRE", "2592000") // 30 days
-        .parse::<i64>()
-        .unwrap_or(2592000);
+    let refresh_secret = get_required_secret("JWT_REFRESH_SECRET")?;
+    let refresh_exp_seconds = get_env_i64("REFRESH_TOKEN_EXPIRE", 2_592_000); // 30 days
     
-    let now = Utc.timestamp_opt(created_at, 0).unwrap();
+    let now = Utc.timestamp_opt(created_at, 0)
+        .single()
+        .ok_or_else(|| AppError::Internal("Invalid refresh token timestamp".to_string()))?;
     let expire = now + Duration::seconds(refresh_exp_seconds);
     let exp_timestamp = expire.timestamp();
 
@@ -47,10 +63,11 @@ pub fn encode_refresh_token(sub: String, role: String, created_at: i64) -> Resul
         role,
         iat: now.timestamp() as usize,
         exp: exp_timestamp as usize,
+        jti: Some(Uuid::new_v4().to_string()),
     };
 
     let token = encode(
-        &Header::default(),
+        &Header::new(Algorithm::HS256),
         &claims,
         &EncodingKey::from_secret(refresh_secret.as_bytes()),
     )
@@ -60,9 +77,9 @@ pub fn encode_refresh_token(sub: String, role: String, created_at: i64) -> Resul
 }
 
 pub fn decode_jwt(token: &str) -> Result<Claims, AppError> {
-    // Try decoding as access token first
-    let access_secret = get_env_var("JWT_SECRET", "secret");
-    let validation = Validation::default();
+    let access_secret = get_required_secret("JWT_SECRET")?;
+    let mut validation = Validation::new(Algorithm::HS256);
+    validation.validate_exp = true;
     
     if let Ok(data) = decode::<Claims>(
         token,
@@ -76,8 +93,9 @@ pub fn decode_jwt(token: &str) -> Result<Claims, AppError> {
 }
 
 pub fn decode_refresh_token(token: &str) -> Result<Claims, AppError> {
-    let refresh_secret = get_env_var("JWT_REFRESH_SECRET", "refresh_secret");
-    let validation = Validation::default();
+    let refresh_secret = get_required_secret("JWT_REFRESH_SECRET")?;
+    let mut validation = Validation::new(Algorithm::HS256);
+    validation.validate_exp = true;
     
     decode::<Claims>(
         token,

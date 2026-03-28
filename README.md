@@ -2,6 +2,35 @@
 
 Dưới đây là các bước chi tiết để thiết lập môi trường lập trình và hạ tầng cơ sở dữ liệu cho dự án rút gọn link.
 
+## Cap nhat bao mat va van hanh API
+
+Project hien tai da bo sung cac thanh phan sau:
+
+- JWT hardening: khong con fallback secret mac dinh. Bat buoc set `JWT_SECRET` va `JWT_REFRESH_SECRET` (toi thieu 32 ky tu).
+- Refresh token hardening: token duoc hash SHA-256 truoc khi luu va so khop trong DB.
+- CORS: cau hinh theo bien moi truong `CORS_ALLOWED_ORIGINS` (ho tro danh sach origin tach bang dau phay hoac `*`).
+- Health endpoints:
+	- `GET /health/live`
+	- `GET /health/ready` (kiem tra ca Postgres va Redis)
+- Rate limit middleware: gioi han request theo IP/UA theo cua so 1 phut.
+- OpenAPI:
+	- JSON spec: `GET /api-docs/openapi.json`
+	- Human hint endpoint: `GET /docs`
+
+### Bien moi truong moi/quan trong
+
+```ini
+# Bat buoc, toi thieu 32 ky tu
+JWT_SECRET=replace_with_strong_secret_at_least_32_chars
+JWT_REFRESH_SECRET=replace_with_strong_refresh_secret_at_least_32_chars
+
+# Tuy chon
+ACCESS_TOKEN_EXPIRE=900
+REFRESH_TOKEN_EXPIRE=2592000
+CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+RATE_LIMIT_REQUESTS_PER_MINUTE=120
+```
+
 ---
 
 ### 1. Cài đặt môi trường WSL 2 và Rust

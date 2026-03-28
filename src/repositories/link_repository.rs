@@ -106,6 +106,15 @@ pub async fn get_all_by_user(pool: &PgPool, user_id: i64) -> Result<Vec<Link>, E
     .await
 }
 
+pub async fn get_all(pool: &PgPool) -> Result<Vec<Link>, Error> {
+    sqlx::query_as!(
+        Link,
+        "SELECT id, owner_id, original_url, short_code, title, click_count, is_active, created_at, updated_at FROM links ORDER BY created_at DESC"
+    )
+    .fetch_all(pool)
+    .await
+}
+
 pub async fn soft_delete_by_owner(
     pool: &PgPool,
     link_id: i64,
@@ -116,6 +125,16 @@ pub async fn soft_delete_by_owner(
         "UPDATE links SET is_active = FALSE, updated_at = NOW() WHERE id = $1 AND owner_id = $2 RETURNING id, owner_id, original_url, short_code, title, click_count, is_active, created_at, updated_at",
         link_id,
         owner_id
+    )
+    .fetch_optional(pool)
+    .await
+}
+
+pub async fn soft_delete_by_id(pool: &PgPool, link_id: i64) -> Result<Option<Link>, Error> {
+    sqlx::query_as!(
+        Link,
+        "UPDATE links SET is_active = FALSE, updated_at = NOW() WHERE id = $1 RETURNING id, owner_id, original_url, short_code, title, click_count, is_active, created_at, updated_at",
+        link_id
     )
     .fetch_optional(pool)
     .await

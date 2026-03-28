@@ -50,6 +50,40 @@ pub async fn find_by_email(pool: &PgPool, email: &str) -> Result<Option<User>, s
     Ok(user)
 }
 
+pub async fn get_all(pool: &PgPool) -> Result<Vec<User>, sqlx::Error> {
+    let users = sqlx::query_as!(
+        User,
+        "SELECT * FROM users ORDER BY created_at DESC"
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(users)
+}
+
+pub async fn soft_delete_by_id(pool: &PgPool, user_id: i64) -> Result<Option<User>, sqlx::Error> {
+    let user = sqlx::query_as!(
+        User,
+        "UPDATE users SET is_active = FALSE, updated_at = NOW() WHERE id = $1 RETURNING *",
+        user_id
+    )
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(user)
+}
+
+pub async fn hard_delete_by_id(pool: &PgPool, user_id: i64) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query!(
+        "DELETE FROM users WHERE id = $1",
+        user_id
+    )
+    .execute(pool)
+    .await?;
+
+    Ok(result.rows_affected() > 0)
+}
+
 pub async fn save_refresh_token(
     pool: &PgPool,
     user_id: i64,
@@ -92,4 +126,16 @@ pub async fn revoke_refresh_token(pool: &PgPool, token_hash: &str) -> Result<boo
     .await?;
 
     Ok(result.rows_affected() > 0)
+}
+
+pub async fn revoke_all_refresh_tokens_by_user_id(pool: &PgPool, user_id: i64) -> Result<u64, sqlx::Error> {
+    let result = sqlx::query!(
+        "UPDATE refresh_tokens SET revoked_at = $1 WHERE user_id = $2 AND revoked_at IS NULL",
+        Utc::now(),
+        user_id
+    )
+    .execute(pool)
+    .await?;
+
+    Ok(result.rows_affected())
 }

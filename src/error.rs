@@ -3,7 +3,15 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
+use serde::Serialize;
 use serde_json::json;
+use utoipa::ToSchema;
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ErrorResponse {
+    pub error: String,
+    pub status: u16,
+}
 
 #[allow(dead_code)]
 #[derive(Debug, thiserror::Error)]
@@ -23,6 +31,9 @@ pub enum AppError {
     #[error("Bad request: {0}")]
     BadRequest(String),
 
+    #[error("Too many requests: {0}")]
+    TooManyRequests(String),
+
     #[error("Internal error: {0}")]
     Internal(String),
 }
@@ -38,6 +49,7 @@ impl IntoResponse for AppError {
             AppError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg.as_str()),
             AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, msg.as_str()),
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.as_str()),
+            AppError::TooManyRequests(msg) => (StatusCode::TOO_MANY_REQUESTS, msg.as_str()),
             AppError::Internal(msg) => {
                 tracing::error!("internal error: {}", msg);
                 (StatusCode::INTERNAL_SERVER_ERROR, msg.as_str())

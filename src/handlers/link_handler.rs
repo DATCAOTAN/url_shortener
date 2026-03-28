@@ -10,9 +10,22 @@ use crate::dtos::link::{CreateLinkRequest, LinkResponse, DeleteLinkResponse, Dai
 use crate::dtos::claims::Claims;
 use chrono::NaiveDate;
 use crate::state::AppState;
+use utoipa::ToSchema;
 use crate::utils::validation::{validate_title, validate_url};
 // use crate::models::link::Link;
 
+#[utoipa::path(
+    post,
+    path = "/links",
+    tag = "Links",
+    security(("bearer_auth" = [])),
+    request_body = CreateLinkRequest,
+    responses(
+        (status = 200, description = "Create short link", body = LinkResponse),
+        (status = 400, description = "Invalid input", body = crate::error::ErrorResponse),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse)
+    )
+)]
 pub async fn create_link(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -41,6 +54,16 @@ pub async fn create_link(
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/{short_code}",
+    tag = "Links",
+    params(("short_code" = String, Path, description = "Short code")),
+    responses(
+        (status = 307, description = "Temporary redirect"),
+        (status = 404, description = "Short code not found", body = crate::error::ErrorResponse)
+    )
+)]
 pub async fn redirect_link(
     State(state): State<AppState>,
     Path(short_code): Path<String>,
@@ -65,6 +88,16 @@ pub async fn redirect_link(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/links/my-links",
+    tag = "Links",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "List my links", body = [LinkResponse]),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse)
+    )
+)]
 pub async fn get_my_links(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -85,12 +118,24 @@ pub async fn get_my_links(
     Ok(Json(response))
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, ToSchema)]
 pub struct AnalyticsQuery {
     pub from: String,
     pub to: String,
 }
 
+#[utoipa::path(
+    delete,
+    path = "/links/{id}",
+    tag = "Links",
+    security(("bearer_auth" = [])),
+    params(("id" = i64, Path, description = "Link ID")),
+    responses(
+        (status = 200, description = "Soft delete success", body = DeleteLinkResponse),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 404, description = "Link not found", body = crate::error::ErrorResponse)
+    )
+)]
 pub async fn delete_link(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -112,6 +157,21 @@ pub async fn delete_link(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/links/analytics",
+    tag = "Links",
+    security(("bearer_auth" = [])),
+    params(
+        ("from" = String, Query, description = "Start date (YYYY-MM-DD)"),
+        ("to" = String, Query, description = "End date (YYYY-MM-DD)")
+    ),
+    responses(
+        (status = 200, description = "Daily analytics", body = [DailyAnalyticsResponse]),
+        (status = 400, description = "Invalid date range", body = crate::error::ErrorResponse),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse)
+    )
+)]
 pub async fn get_daily_analytics(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
