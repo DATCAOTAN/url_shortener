@@ -3,6 +3,7 @@ use dotenvy::dotenv;
 use std::env;
 
 use crate::db::init_db;
+use crate::routes::link_route;
 use crate::routes::user_route;
 
 mod dtos;
@@ -36,6 +37,7 @@ async fn main() {
     let app = Router::new()
         .route("/", axum::routing::get(|| async { "Hello, World!" }))
         .merge(user_route::routes())
+        .merge(link_route::routes())
         .with_state(db_pool);
 
     let bind_addr = env::var("BIND_ADDR").unwrap_or_else(|_| "0.0.0.0:8080".to_string());

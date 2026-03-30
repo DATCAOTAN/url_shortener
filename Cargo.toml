@@ -13,6 +13,9 @@ tokio = { version = "1.0", features = ["full"] }
 # Thư viện kết nối PostgreSQL
 sqlx = { version = "0.8.6", features = ["runtime-tokio", "tls-rustls", "postgres", "chrono"] }
 
+# Sinh chuỗi
+base62 = "2.0"
+
 # Hash password
 bcrypt = "0.15"
 

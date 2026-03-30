@@ -1,0 +1,50 @@
+@baseUrl = http://127.0.0.1:8080
+@username = tester{{$timestamp}}
+@email = tester{{$timestamp}}@example.com
+@password = 12345678
+
+### Health check
+GET {{baseUrl}}/
+
+### Register user
+# @name register
+POST {{baseUrl}}/register
+Content-Type: application/json
+
+{
+  "username": "{{username}}",
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+### Login
+# @name login
+POST {{baseUrl}}/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+### Get current user with access token
+# @name me
+GET {{baseUrl}}/users/me
+Authorization: Bearer {{login.response.body.$.access_token}}
+
+### Get user by id
+GET {{baseUrl}}/users/{{me.response.body.$.id}}
+Authorization: Bearer {{login.response.body.$.access_token}}
+
+### Refresh access token
+# @name refresh
+POST {{baseUrl}}/refresh
+Content-Type: application/json
+
+{
+  "refresh_token": "{{login.response.body.$.refresh_token}}"
+}
+
+### Get current user with refreshed token
+GET {{baseUrl}}/users/me
+Authorization: Bearer {{refresh.response.body.$.access_token}}
