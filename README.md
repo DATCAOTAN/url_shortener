@@ -117,10 +117,6 @@ Cap quyen admin hien tai:
   - Mo ta: Lay profile nguoi dang nhap
   - Auth: Bearer user/admin
 
-- GET /users/{id}
-  - Mo ta: Lay user theo id, owner-only tren user route
-  - Auth: Bearer user/admin
-
 - POST /links
   - Mo ta: Tao short link
   - Auth: Bearer user/admin

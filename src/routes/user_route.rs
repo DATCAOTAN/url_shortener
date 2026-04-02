@@ -16,7 +16,6 @@ pub fn routes() -> Router<AppState> {
 
     let protected_routes = Router::new()
         .route("/users/me", get(user_handler::get_me))
-        .route("/users/{id}", get(user_handler::get_user))
         .route_layer(middleware::from_fn(auth_middleware));
 
     public_routes.merge(protected_routes)

@@ -1,11 +1,10 @@
-use axum::{Router, serve};
+use axum::{Json, Router, serve};
 use dotenvy::dotenv;
 use std::env;
 use std::time::Duration;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 use utoipa::OpenApi;
-use axum::Json;
 
 use crate::db::init_db;
 use crate::middleware::rate_limit_middleware::{RateLimiter, rate_limit_middleware};
@@ -88,15 +87,11 @@ async fn main() {
 
     let app = Router::new()
         .route("/", axum::routing::get(|| async { "URL Shortener API" }))
+        .route("/docs", axum::routing::get(|| async { docs::swagger_ui_page() }))
+        .route("/docs/swagger", axum::routing::get(|| async { docs::swagger_ui_page() }))
         .route(
             "/api-docs/openapi.json",
             axum::routing::get(|| async { Json(docs::ApiDoc::openapi()) }),
-        )
-        .route(
-            "/docs",
-            axum::routing::get(|| async {
-                "OpenAPI JSON is available at /api-docs/openapi.json"
-            }),
         )
         .merge(health_route::routes())
         .merge(user_route::routes())

@@ -1,7 +1,7 @@
 use axum::{
     Extension,
     Json,
-    extract::{Path, State},
+    extract::State,
 };
 use crate::error::{AppError, AppResult};
 use crate::services::user_service;
@@ -9,40 +9,6 @@ use crate::dtos::claims::Claims;
 use crate::dtos::user::{LoginResponse, LoginUser, LogoutRequest, LogoutResponse, RefreshTokenRequest, RefreshTokenResponse, RegisterUser, UserResponse};
 use crate::state::AppState;
 use crate::utils::validation::{validate_email, validate_password, validate_username};
-
-#[utoipa::path(
-    get,
-    path = "/users/{id}",
-    tag = "Users",
-    security(("bearer_auth" = [])),
-    params(("id" = i64, Path, description = "User ID")),
-    responses(
-        (status = 200, description = "User details", body = UserResponse),
-        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
-        (status = 403, description = "Forbidden", body = crate::error::ErrorResponse),
-        (status = 404, description = "User not found", body = crate::error::ErrorResponse)
-    )
-)]
-pub async fn get_user(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<i64>,
-) -> AppResult<Json<UserResponse>> {
-    let user_id = claims.sub.parse::<i64>().map_err(|_| AppError::Unauthorized("Invalid user ID in token".to_string()))?;
-
-    if user_id != id {
-        return Err(AppError::Forbidden("Ban khong co quyen xem user nay".to_string()));
-    }
-
-    match user_service::get_user(&state.db, id).await {
-        Ok(user) => Ok(Json(UserResponse::from(user))),
-        Err(sqlx::Error::RowNotFound) => Err(AppError::NotFound(format!("User {} not found", id))),
-        Err(e) => {
-            eprintln!("get_user database error: {}", e);
-            Err(e.into())
-        }
-    }
-}
 
 #[utoipa::path(
     get,
