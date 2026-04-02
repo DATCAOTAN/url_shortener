@@ -9,7 +9,7 @@ use axum::Json;
 
 use crate::db::init_db;
 use crate::middleware::rate_limit_middleware::{RateLimiter, rate_limit_middleware};
-use crate::routes::{admin_route, health_route, link_route, user_route};
+use crate::routes::{admin_route, demo_route, health_route, link_route, user_route};
 use crate::state::AppState;
 use deadpool_redis::{Config as RedisConfig, Runtime, PoolConfig};
 use axum::http::{HeaderValue, Method};
@@ -102,6 +102,7 @@ async fn main() {
         .merge(user_route::routes())
         .merge(link_route::routes())
         .merge(admin_route::routes())
+        .merge(demo_route::routes())
         .layer(axum_middleware::from_fn_with_state(rate_limiter, rate_limit_middleware))
         .layer(cors_layer)
         .layer(TraceLayer::new_for_http())

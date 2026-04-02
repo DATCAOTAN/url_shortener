@@ -1,5 +1,6 @@
 use sqlx::{PgPool, Error};
 use chrono::{NaiveDate, Utc, FixedOffset};
+use std::time::Duration;
 use crate::models::link::Link;
 use crate::models::link_analytics::DailyClickTotal;
 use crate::repositories::link_repository;
@@ -53,17 +54,20 @@ pub async fn create_short_link(
 
 pub async fn get_original_url(pool: &PgPool, short_code: &str) -> Result<Option<String>, Error> {
     if let Some(link) = link_repository::find_active_by_short_code(pool, short_code).await? {
-        let today = current_date_vn();
-        let pool = pool.clone();
-        let link_id = link.id;
-        tokio::spawn(async move {
-            if let Err(e) = link_repository::increment_click_and_analytics(&pool, link_id, today).await {
-                tracing::warn!("Async analytics update failed: {:?}", e);
-            }
-        });
+        spawn_click_tracking(pool, link.id);
         Ok(Some(link.original_url))
     } else {
         Ok(None)
+    }
+}
+
+pub async fn track_click_by_short_code(pool: &PgPool, short_code: &str) {
+    match link_repository::find_active_by_short_code(pool, short_code).await {
+        Ok(Some(link)) => spawn_click_tracking(pool, link.id),
+        Ok(None) => {}
+        Err(e) => {
+            tracing::warn!("Track click lookup failed: {:?}", e);
+        }
     }
 }
 
@@ -100,6 +104,28 @@ pub async fn get_daily_analytics(
 fn current_date_vn() -> NaiveDate {
     let offset = FixedOffset::east_opt(7 * 3600).unwrap_or_else(|| FixedOffset::east_opt(0).unwrap());
     Utc::now().with_timezone(&offset).date_naive()
+}
+
+fn spawn_click_tracking(pool: &PgPool, link_id: i64) {
+    let today = current_date_vn();
+    let pool = pool.clone();
+    tokio::spawn(async move {
+        let delay_ms = std::env::var("DEMO_SPAWN_DELAY_MS")
+            .ok()
+            .and_then(|v| v.parse::<u64>().ok())
+            .unwrap_or(0);
+
+        if delay_ms > 0 {
+            tracing::info!("[spawn-demo] background task for link_id={} sleeping {}ms", link_id, delay_ms);
+            tokio::time::sleep(Duration::from_millis(delay_ms)).await;
+        }
+
+        if let Err(e) = link_repository::increment_click_and_analytics(&pool, link_id, today).await {
+            tracing::warn!("Async analytics update failed: {:?}", e);
+        } else if delay_ms > 0 {
+            tracing::info!("[spawn-demo] background task for link_id={} completed", link_id);
+        }
+    });
 }
 
 fn is_unique_violation(err: &Error) -> bool {

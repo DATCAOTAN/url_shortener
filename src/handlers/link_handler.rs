@@ -69,7 +69,10 @@ pub async fn redirect_link(
     Path(short_code): Path<String>,
 ) -> AppResult<Redirect> {
     match cache_service::get_cached_url(&state.redis, &short_code).await {
-        Ok(Some(url)) => return Ok(Redirect::to(&url)),
+        Ok(Some(url)) => {
+            link_service::track_click_by_short_code(&state.db, &short_code).await;
+            return Ok(Redirect::to(&url));
+        }
         Ok(None) => {}
         Err(e) => {
             tracing::warn!("Redis cache read error: {:?}", e);
