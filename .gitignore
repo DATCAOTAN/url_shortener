@@ -2,3 +2,4 @@
 .env
 .vscode/
 *.log
+scripts/api_batch_state.json
