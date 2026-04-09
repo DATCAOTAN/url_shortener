@@ -11,6 +11,18 @@ use crate::error::{AppError, AppResult};
 use crate::services::{link_service, user_service};
 use crate::state::AppState;
 
+#[utoipa::path(
+    get,
+    path = "/admin/users",
+    tag = "Admin",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "List all users", body = [crate::dtos::user::UserResponse]),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 403, description = "Forbidden", body = crate::error::ErrorResponse),
+        (status = 500, description = "Database error", body = crate::error::ErrorResponse)
+    )
+)]
 pub async fn list_users(
     State(state): State<AppState>,
     Extension(_claims): Extension<Claims>,
@@ -23,6 +35,22 @@ pub async fn list_users(
     Ok(Json(response))
 }
 
+#[utoipa::path(
+    get,
+    path = "/admin/users/{id}",
+    tag = "Admin",
+    security(("bearer_auth" = [])),
+    params(
+        ("id" = i64, Path, description = "User ID")
+    ),
+    responses(
+        (status = 200, description = "Get user by id", body = crate::dtos::user::UserResponse),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 403, description = "Forbidden", body = crate::error::ErrorResponse),
+        (status = 404, description = "User not found", body = crate::error::ErrorResponse),
+        (status = 500, description = "Database error", body = crate::error::ErrorResponse)
+    )
+)]
 pub async fn get_user_by_id(
     State(state): State<AppState>,
     Extension(_claims): Extension<Claims>,
@@ -35,6 +63,18 @@ pub async fn get_user_by_id(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/admin/links",
+    tag = "Admin",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "List all links", body = [crate::dtos::link::LinkResponse]),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 403, description = "Forbidden", body = crate::error::ErrorResponse),
+        (status = 500, description = "Database error", body = crate::error::ErrorResponse)
+    )
+)]
 pub async fn list_links(
     State(state): State<AppState>,
     Extension(_claims): Extension<Claims>,
@@ -57,6 +97,22 @@ pub async fn list_links(
     Ok(Json(response))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/admin/links/{id}",
+    tag = "Admin",
+    security(("bearer_auth" = [])),
+    params(
+        ("id" = i64, Path, description = "Link ID")
+    ),
+    responses(
+        (status = 200, description = "Disable link", body = crate::dtos::link::DeleteLinkResponse),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 403, description = "Forbidden", body = crate::error::ErrorResponse),
+        (status = 404, description = "Link not found", body = crate::error::ErrorResponse),
+        (status = 500, description = "Database error", body = crate::error::ErrorResponse)
+    )
+)]
 pub async fn disable_link(
     State(state): State<AppState>,
     Extension(_claims): Extension<Claims>,
@@ -77,6 +133,23 @@ pub async fn disable_link(
     }
 }
 
+#[utoipa::path(
+    delete,
+    path = "/admin/users/{id}",
+    tag = "Admin",
+    security(("bearer_auth" = [])),
+    params(
+        ("id" = i64, Path, description = "User ID")
+    ),
+    responses(
+        (status = 200, description = "Soft delete user", body = crate::dtos::user::LogoutResponse),
+        (status = 400, description = "Bad request", body = crate::error::ErrorResponse),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 403, description = "Forbidden", body = crate::error::ErrorResponse),
+        (status = 404, description = "User not found", body = crate::error::ErrorResponse),
+        (status = 500, description = "Database error", body = crate::error::ErrorResponse)
+    )
+)]
 pub async fn soft_delete_user(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -100,6 +173,23 @@ pub async fn soft_delete_user(
     }
 }
 
+#[utoipa::path(
+    delete,
+    path = "/admin/users/{id}/hard",
+    tag = "Admin",
+    security(("bearer_auth" = [])),
+    params(
+        ("id" = i64, Path, description = "User ID")
+    ),
+    responses(
+        (status = 200, description = "Hard delete user", body = crate::dtos::user::LogoutResponse),
+        (status = 400, description = "Bad request", body = crate::error::ErrorResponse),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 403, description = "Forbidden", body = crate::error::ErrorResponse),
+        (status = 404, description = "User not found", body = crate::error::ErrorResponse),
+        (status = 500, description = "Database error", body = crate::error::ErrorResponse)
+    )
+)]
 pub async fn hard_delete_user(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,

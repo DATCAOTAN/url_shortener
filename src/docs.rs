@@ -33,7 +33,13 @@ impl Modify for SecurityAddon {
         crate::handlers::link_handler::redirect_link,
         crate::handlers::link_handler::get_my_links,
         crate::handlers::link_handler::delete_link,
-        crate::handlers::link_handler::get_daily_analytics
+        crate::handlers::link_handler::get_daily_analytics,
+        crate::handlers::admin_handler::list_users,
+        crate::handlers::admin_handler::get_user_by_id,
+        crate::handlers::admin_handler::soft_delete_user,
+        crate::handlers::admin_handler::hard_delete_user,
+        crate::handlers::admin_handler::list_links,
+        crate::handlers::admin_handler::disable_link
     ),
     components(
         schemas(
@@ -60,7 +66,8 @@ impl Modify for SecurityAddon {
         (name = "Health", description = "Health check endpoints"),
         (name = "Auth", description = "Authentication endpoints"),
         (name = "Users", description = "User profile endpoints"),
-        (name = "Links", description = "URL shortener endpoints")
+        (name = "Links", description = "URL shortener endpoints"),
+        (name = "Admin", description = "Administrative endpoints")
     )
 )]
 pub struct ApiDoc;
