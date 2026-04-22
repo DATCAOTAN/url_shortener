@@ -1,11 +1,11 @@
 use axum::{
     Extension,
     Json,
-    extract::{Path, State},
+    extract::{Path, Query, State},
 };
 
 use crate::dtos::claims::Claims;
-use crate::dtos::link::{DeleteLinkResponse, LinkResponse};
+use crate::dtos::link::{DeleteLinkResponse, LinkResponse, PaginationMetadata, PaginationQuery, PaginationResponse, SearchQuery};
 use crate::dtos::user::{LogoutResponse, UserResponse};
 use crate::error::{AppError, AppResult};
 use crate::services::{link_service, user_service};
@@ -38,8 +38,85 @@ pub async fn get_user_by_id(
 pub async fn list_links(
     State(state): State<AppState>,
     Extension(_claims): Extension<Claims>,
-) -> AppResult<Json<Vec<LinkResponse>>> {
+    Query(pagination): Query<PaginationQuery>,
+) -> AppResult<Json<PaginationResponse>> {
+    // Mac dinh phan trang: current_page=1, limit=10 neu client khong truyen hoac truyen <= 0.
+    let current_page = pagination.current_page.filter(|page| *page > 0).unwrap_or(1);
+    let limit = pagination.limit.filter(|size| *size > 0).unwrap_or(10);
+    // Mac dinh sap xep giam dan theo luot click.
+    let sort_by = pagination.sort_by.unwrap_or_else(|| "clicks_desc".to_string());
+
     let links = link_service::get_all_links(&state.db)
+        .await
+        .map_err(AppError::Database)?;
+
+    let mut response: Vec<LinkResponse> = links
+        .into_iter()
+        .map(|link| LinkResponse {
+            id: link.id,
+            short_code: link.short_code,
+            original_url: link.original_url,
+            title: link.title,
+            click_count: link.click_count.unwrap_or(0),
+            is_active: link.is_active.unwrap(),
+            expires_at: link.expires_at,
+        })
+        .collect();
+
+    // Chi chap nhan 2 gia tri sort_by: clicks_desc hoac clicks_asc.
+    match sort_by.as_str() {
+        "clicks_desc" => response.sort_by(|a, b| b.click_count.cmp(&a.click_count)),
+        "clicks_asc" => response.sort_by(|a, b| a.click_count.cmp(&b.click_count)),
+        _ => {
+            return Err(AppError::BadRequest(
+                "sort_by chi nhan mot trong hai gia tri: clicks_desc hoac clicks_asc".to_string(),
+            ));
+        }
+    }
+
+    let total_items = response.len() as i64;
+    let total_pages = if total_items == 0 {
+        0
+    } else {
+        ((total_items as u64 + limit as u64 - 1) / limit as u64) as u32
+    };
+
+    // Cong thuc offset: (page - 1) * limit de xac dinh vi tri bat dau cat mang.
+    let offset = (current_page.saturating_sub(1) as u64).saturating_mul(limit as u64);
+    let paged_data = response
+        .into_iter()
+        .skip(offset as usize)
+        .take(limit as usize)
+        .collect();
+
+    // Metadata giup client biet tong so ban ghi/trang va thong tin truy van hien tai.
+    let metadata = PaginationMetadata {
+        limit,
+        offset,
+        sort_by,
+        total_items,
+        total_pages,
+        current_page,
+    };
+
+    let response = PaginationResponse {
+        data: paged_data,
+        metadata,
+    };
+
+    Ok(Json(response))
+}
+
+pub async fn search_links(
+    State(state): State<AppState>,
+    Extension(_claims): Extension<Claims>,
+    Query(query): Query<SearchQuery>,
+) -> AppResult<Json<Vec<LinkResponse>>> {
+    let links = link_service::get_links_with_min_clicks(
+        &state.db,
+        query.min_clicks,
+        query.is_active,
+    )
         .await
         .map_err(AppError::Database)?;
 
@@ -51,6 +128,8 @@ pub async fn list_links(
             original_url: link.original_url,
             title: link.title,
             click_count: link.click_count.unwrap_or(0),
+            is_active: link.is_active.unwrap(),
+            expires_at: link.expires_at,
         })
         .collect();
 

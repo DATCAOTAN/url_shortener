@@ -12,6 +12,7 @@ pub enum CacheError {
 const URL_CACHE_PREFIX: &str = "url:";
 const CACHE_TTL_SECONDS: u64 = 3600;
 
+#[allow(dead_code)]
 pub async fn get_cached_url(
     redis: &deadpool_redis::Pool,
     short_code: &str,

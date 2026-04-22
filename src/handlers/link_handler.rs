@@ -1,7 +1,8 @@
 use axum::{
     Json,
+    http::StatusCode,
     extract::{Path, State, Query},
-    response::Redirect,
+    response::{IntoResponse, Redirect, Response},
     Extension,
 };
 use crate::error::{AppError, AppResult};
@@ -14,9 +15,11 @@ use utoipa::ToSchema;
 use crate::utils::validation::{validate_title, validate_url};
 // use crate::models::link::Link;
 
+const COOLDOWN_SECONDS: u32 = 5;
+
 #[utoipa::path(
     post,
-    path = "/links",
+    path = "/api/links/create",
     tag = "Links",
     security(("bearer_auth" = [])),
     request_body = CreateLinkRequest,
@@ -33,17 +36,85 @@ pub async fn create_link(
 ) -> AppResult<Json<LinkResponse>> {
     let user_id = claims.sub.parse::<i64>().map_err(|_| AppError::Unauthorized("Invalid user ID".to_string()))?;
 
-    if !validate_url(&payload.original_url) {
+    let CreateLinkRequest {
+        original_url,
+        title,
+        expires_in_seconds,
+    } = payload;
+
+    if !validate_url(&original_url) {
         return Err(AppError::BadRequest("Invalid URL (must be http/https)".to_string()));
     }
-    if let Some(title) = payload.title.as_deref() {
+    if let Some(title) = title.as_deref() {
         if !validate_title(title) {
             return Err(AppError::BadRequest("Title must be 1-255 characters".to_string()));
         }
     }
+
+    // expires_in_seconds la TTL tinh theo giay, neu co thi quy doi thanh Unix timestamp.
+    let expires_at = match expires_in_seconds {
+        Some(ttl_seconds) => {
+            if ttl_seconds == 0 {
+                return Err(AppError::BadRequest("expires_in_seconds must be > 0".to_string()));
+            }
+
+            let current_timestamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|duration| duration.as_secs())
+                .unwrap_or(0);
+
+            let expires_at = current_timestamp
+                .checked_add(ttl_seconds)
+                .ok_or_else(|| AppError::BadRequest("TTL value is too large".to_string()))?;
+
+            // Database luu BIGINT, can dam bao gia tri nam trong mien i64.
+            if expires_at > i64::MAX as u64 {
+                return Err(AppError::BadRequest("expires_at is out of supported range".to_string()));
+            }
+
+            Some(expires_at)
+        }
+        None => None,
+    };
+
+    // In-memory cooldown per user to block rapid repeated create requests.
+    let now = std::time::Instant::now();
+    {
+        let mut cooldown_map = state.cooldown.lock().await;
+
+        if let Some(last_request) = cooldown_map.get(&user_id) {
+            let elapsed = now.saturating_duration_since(*last_request).as_secs();
+            // If the user is still in cooldown window, reject with HTTP 429.
+            if elapsed < COOLDOWN_SECONDS as u64 {
+                let wait_for = COOLDOWN_SECONDS as u64 - elapsed;
+                return Err(AppError::TooManyRequests(format!(
+                    "Please wait {}s before creating another link",
+                    wait_for
+                )));
+            }
+        }
+
+        // Record the current attempt timestamp before processing DB write.
+        cooldown_map.insert(user_id, now);
+    }
     
-    let link = link_service::create_short_link(&state.db, &payload.original_url, Some(user_id), payload.title).await
-        .map_err(AppError::Database)?;
+    let link = match link_service::create_short_link(
+        &state.db,
+        &original_url,
+        Some(user_id),
+        title,
+        expires_at,
+    )
+    .await
+    {
+        Ok(link) => link,
+        Err(e) => {
+            // DB write failed: clear cooldown marker so client can retry immediately.
+            let mut cooldown_map = state.cooldown.lock().await;
+            cooldown_map.remove(&user_id);
+            return Err(AppError::Database(e));
+        }
+    };
 
     Ok(Json(LinkResponse {
         id: link.id,
@@ -51,6 +122,8 @@ pub async fn create_link(
         original_url: link.original_url,
         title: link.title,
         click_count: link.click_count.unwrap_or(0),
+        is_active: link.is_active.unwrap(),
+        expires_at: link.expires_at,
     }))
 }
 
@@ -61,29 +134,36 @@ pub async fn create_link(
     params(("short_code" = String, Path, description = "Short code")),
     responses(
         (status = 307, description = "Temporary redirect"),
+        (status = 410, description = "Link expired"),
         (status = 404, description = "Short code not found", body = crate::error::ErrorResponse)
     )
 )]
 pub async fn redirect_link(
     State(state): State<AppState>,
     Path(short_code): Path<String>,
-) -> AppResult<Redirect> {
-    match cache_service::get_cached_url(&state.redis, &short_code).await {
-        Ok(Some(url)) => return Ok(Redirect::to(&url)),
-        Ok(None) => {}
-        Err(e) => {
-            tracing::warn!("Redis cache read error: {:?}", e);
-        }
-    }
-
-    match link_service::get_original_url(&state.db, &short_code).await {
-        Ok(Some(url)) => {
+) -> AppResult<Response> {
+    match link_service::resolve_redirect_target(&state.db, &short_code).await {
+        Ok(link_service::RedirectResolution::Found(url)) => {
             if let Err(e) = cache_service::set_cached_url(&state.redis, &short_code, &url).await {
                 tracing::warn!("Redis cache write error: {:?}", e);
             }
-            Ok(Redirect::to(&url))
+            Ok(Redirect::to(&url).into_response())
         }
-        Ok(None) => Err(AppError::NotFound(format!("Link {} not found", short_code))),
+        Ok(link_service::RedirectResolution::Expired) => {
+            // Link da qua han se tra 410 Gone thay vi redirect.
+            if let Err(e) = cache_service::invalidate_cache(&state.redis, &short_code).await {
+                tracing::warn!("Redis cache invalidate error: {:?}", e);
+            }
+
+            Ok((
+                StatusCode::GONE,
+                "Link da het han. Vui long tao link moi.",
+            )
+                .into_response())
+        }
+        Ok(link_service::RedirectResolution::NotFound) => {
+            Err(AppError::NotFound(format!("Link {} not found", short_code)))
+        }
         Err(e) => Err(AppError::Database(e)),
     }
 }
@@ -113,6 +193,8 @@ pub async fn get_my_links(
         original_url: link.original_url,
         title: link.title,
         click_count: link.click_count.unwrap_or(0),
+        is_active: link.is_active.unwrap(),
+        expires_at: link.expires_at,
     }).collect();
 
     Ok(Json(response))

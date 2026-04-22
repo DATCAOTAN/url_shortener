@@ -11,6 +11,7 @@ pub struct Link {
     pub title: Option<String>,
     pub click_count: Option<i64>,
     pub is_active: Option<bool>,
+    pub expires_at: Option<u64>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

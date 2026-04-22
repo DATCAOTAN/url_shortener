@@ -1,10 +1,17 @@
 use sqlx::{PgPool, Error};
 use chrono::{NaiveDate, Utc, FixedOffset};
+use std::time::{SystemTime, UNIX_EPOCH};
 use crate::models::link::Link;
 use crate::models::link_analytics::DailyClickTotal;
 use crate::repositories::link_repository;
 
 const BASE62_CHARSET: &[u8] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+
+pub enum RedirectResolution {
+    Found(String),
+    Expired,
+    NotFound,
+}
 
 fn encode_base62(mut num: i64) -> String {
     if num == 0 {
@@ -28,6 +35,7 @@ pub async fn create_short_link(
     original_url: &str,
     owner_id: Option<i64>,
     title: Option<String>,
+    expires_at: Option<u64>,
 ) -> Result<Link, Error> {
     if let Some(owner_id) = owner_id {
         if let Some(existing) = link_repository::find_by_owner_and_original_url(pool, owner_id, original_url).await? {
@@ -37,7 +45,7 @@ pub async fn create_short_link(
 
     let id = link_repository::next_link_id(pool).await?;
     let short_code = encode_base62(id);
-    match link_repository::create_with_id(pool, id, owner_id, original_url, &short_code, title).await {
+    match link_repository::create_with_id(pool, id, owner_id, original_url, &short_code, title, expires_at).await {
         Ok(link) => Ok(link),
         Err(e) if is_unique_violation(&e) => {
             if let Some(owner_id) = owner_id {
@@ -51,8 +59,15 @@ pub async fn create_short_link(
     }
 }
 
-pub async fn get_original_url(pool: &PgPool, short_code: &str) -> Result<Option<String>, Error> {
+pub async fn resolve_redirect_target(pool: &PgPool, short_code: &str) -> Result<RedirectResolution, Error> {
     if let Some(link) = link_repository::find_active_by_short_code(pool, short_code).await? {
+        if let Some(expires_at) = link.expires_at {
+            // Link het han khi expires_at nho hon timestamp hien tai (don vi giay).
+            if expires_at < current_unix_timestamp() {
+                return Ok(RedirectResolution::Expired);
+            }
+        }
+
         let today = current_date_vn();
         let pool = pool.clone();
         let link_id = link.id;
@@ -61,9 +76,9 @@ pub async fn get_original_url(pool: &PgPool, short_code: &str) -> Result<Option<
                 tracing::warn!("Async analytics update failed: {:?}", e);
             }
         });
-        Ok(Some(link.original_url))
+        Ok(RedirectResolution::Found(link.original_url))
     } else {
-        Ok(None)
+        Ok(RedirectResolution::NotFound)
     }
 }
 
@@ -78,6 +93,10 @@ pub async fn get_user_links(pool: &PgPool, user_id: i64) -> Result<Vec<Link>, Er
 
 pub async fn get_all_links(pool: &PgPool) -> Result<Vec<Link>, Error> {
     link_repository::get_all(pool).await
+}
+
+pub async fn get_links_with_min_clicks(pool: &PgPool, min_clicks: i64, is_active: bool) -> Result<Vec<Link>, Error> {
+    link_repository::get_links_with_min_clicks(pool, min_clicks, is_active).await
 }
 
 pub async fn soft_delete_link(pool: &PgPool, user_id: i64, link_id: i64) -> Result<Option<Link>, Error> {
@@ -100,6 +119,13 @@ pub async fn get_daily_analytics(
 fn current_date_vn() -> NaiveDate {
     let offset = FixedOffset::east_opt(7 * 3600).unwrap_or_else(|| FixedOffset::east_opt(0).unwrap());
     Utc::now().with_timezone(&offset).date_naive()
+}
+
+fn current_unix_timestamp() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or(0)
 }
 
 fn is_unique_violation(err: &Error) -> bool {

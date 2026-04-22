@@ -6,20 +6,22 @@
 @userPassword = password123
 
 @adminUsername = adminuser
-@adminEmail = admin@example.com
+@adminEmail = admin@system.com
 @adminPassword = password123
 
 ### Tokens (paste from login responses)
 @userAccessToken = <paste_user_access_token_here>
 @userRefreshToken = <paste_user_refresh_token_here>
-@adminAccessToken = eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMiIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc3NDY2NTI5MCwiZXhwIjoxNzc0NjY2MTkwLCJqdGkiOm51bGx9.c7v3baChBqfGwUhcXHfD83DCAw22Rml9vtDTN8BiVyA
-@adminRefreshToken = eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMiIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc3NDY2NTI5MCwiZXhwIjoxNzc3MjU3MjkwLCJqdGkiOiIxYTJmNjFlMy0zMjU2LTQ1NDctYWFmMy1iZjVjNDVkZWJjNjYifQ.sF4YN07xiaX2iawGuoAG6aMe4EYvRRS4qYl8HhQyAd8
+@adminAccessToken = <paste_admin_access_token_here>
+@adminRefreshToken = <paste_admin_refresh_token_here>
 
 ### IDs and short code (paste from responses)
 @userId = 1
 @adminId = 12
 @linkId = 1
 @shortCode = rust
+@expiredShortCode = expired1
+@futureShortCode = futurettl
 
 @fromDate = 2026-03-01
 @toDate = 2026-03-31
@@ -45,6 +47,12 @@ GET {{baseUrl}}/docs
 
 ### Redirect by short code
 GET {{baseUrl}}/{{shortCode}}
+
+### Redirect expired short code (expect 410 Gone)
+GET {{baseUrl}}/{{expiredShortCode}}
+
+### Redirect future TTL short code (expect 307/302)
+GET {{baseUrl}}/{{futureShortCode}}
 
 
 ##################################################
@@ -118,14 +126,25 @@ Authorization: Bearer {{userAccessToken}}
 GET {{baseUrl}}/users/{{userId}}
 Authorization: Bearer {{userAccessToken}}
 
-### Create short link
-POST {{baseUrl}}/links
+### Create short link with TTL (expires_in_seconds)
+POST {{baseUrl}}/api/links/create
 Content-Type: application/json
 Authorization: Bearer {{userAccessToken}}
 
 {
   "original_url": "https://google.com",
-  "title": "Google"
+  "title": "Google",
+  "expires_in_seconds": 3600
+}
+
+### Create short link without TTL (vô thời hạn)
+POST {{baseUrl}}/api/links/create
+Content-Type: application/json
+Authorization: Bearer {{userAccessToken}}
+
+{
+  "original_url": "https://example.com/no-expire",
+  "title": "No Expire Link"
 }
 
 ### List my links
