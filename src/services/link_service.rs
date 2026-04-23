@@ -87,6 +87,9 @@ pub async fn soft_delete_link(pool: &PgPool, user_id: i64, link_id: i64) -> Resu
 pub async fn admin_soft_delete_link(pool: &PgPool, link_id: i64) -> Result<Option<Link>, Error> {
     link_repository::soft_delete_by_id(pool, link_id).await
 }
+pub async fn advanced_search_links(pool: &PgPool, query: &str) -> Result<Vec<Link>, Error> {
+    link_repository::advanced_search(pool, query).await
+}
 
 pub async fn get_daily_analytics(
     pool: &PgPool,
@@ -108,3 +111,4 @@ fn is_unique_violation(err: &Error) -> bool {
         _ => false,
     }
 }
+

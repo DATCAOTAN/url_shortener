@@ -34,6 +34,7 @@ impl Modify for SecurityAddon {
         crate::handlers::link_handler::get_my_links,
         crate::handlers::link_handler::delete_link,
         crate::handlers::link_handler::get_daily_analytics,
+        crate::handlers::link_handler::get_advanced_search_results,
         crate::handlers::admin_handler::list_users,
         crate::handlers::admin_handler::get_user_by_id,
         crate::handlers::admin_handler::soft_delete_user,
@@ -55,7 +56,7 @@ impl Modify for SecurityAddon {
             crate::dtos::link::LinkResponse,
             crate::dtos::link::DeleteLinkResponse,
             crate::dtos::link::DailyAnalyticsResponse,
-            crate::handlers::link_handler::AnalyticsQuery,
+            crate::dtos::link::AdvancedSearchRequest,
             crate::handlers::health_handler::HealthResponse,
             crate::handlers::health_handler::ReadyResponse,
             crate::error::ErrorResponse

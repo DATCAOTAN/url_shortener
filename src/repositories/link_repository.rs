@@ -156,3 +156,42 @@ pub async fn get_daily_analytics_by_user(
     .fetch_all(pool)
     .await
 }
+
+pub async fn advanced_search(pool: &Pgpool,owner_id:Option<i64>,min_clicks:Option<i64>,max_clicks:Option<i64>,from_date:Option<NaiveDate>,to_date:Option<NaiveDate>)->Result<Vec<Link>,Error>{
+    let mut builder = QueryBuilder::<Postgres>::new(
+        "SELECT id, owner_id, original_url, short_code, title, click_count, is_active, created_at, updated_at FROM links WHERE owner_id = ",
+    );
+    builder.push_bind(owner_id);
+
+    builder.push(" AND (is_active IS NULL OR is_active = TRUE)");
+
+    if let Some(min) = min_clicks {
+        builder.push(" AND COALESCE(click_count, 0) >= ");
+        builder.push_bind(min);
+    }
+
+    if let Some(max) = max_clicks {
+        builder.push(" AND COALESCE(click_count, 0) <= ");
+        builder.push_bind(max);
+    }
+
+    if let Some(from) = from_date {
+        builder.push(" AND created_at::date >= ");
+        builder.push_bind(from);
+    }
+
+    if let Some(to) = to_date {
+        builder.push(" AND created_at::date <= ");
+        builder.push_bind(to);
+    }
+
+    if let Some(domain_value) = domain {
+        let pattern = format!("%{}%", domain_value);
+        builder.push(" AND original_url ILIKE ");
+        builder.push_bind(pattern);
+    }
+
+    builder.push(" ORDER BY created_at DESC");
+
+    builder.build_query_as::<Link>().fetch_all(pool).await
+}
