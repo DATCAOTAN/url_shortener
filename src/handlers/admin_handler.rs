@@ -91,8 +91,6 @@ pub async fn list_links(
             original_url: link.original_url,
             title: link.title,
             click_count: link.click_count.unwrap_or(0),
-            is_active: link.is_active,
-            created_at: link.created_at.to_rfc3339(),
         })
         .collect();
 
