@@ -1,11 +1,11 @@
 use axum::{
     Extension,
     Json,
-    extract::{Path, State},
+    extract::{Path, Query, State},
 };
 
 use crate::dtos::claims::Claims;
-use crate::dtos::link::{DeleteLinkResponse, LinkResponse};
+use crate::dtos::link::{DeleteLinkResponse, LinkResponse, ListLinksQuery};
 use crate::dtos::user::{LogoutResponse, UserResponse};
 use crate::error::{AppError, AppResult};
 use crate::services::{link_service, user_service};
@@ -68,8 +68,10 @@ pub async fn get_user_by_id(
     path = "/admin/links",
     tag = "Admin",
     security(("bearer_auth" = [])),
+    params(ListLinksQuery),
     responses(
         (status = 200, description = "List all links", body = [crate::dtos::link::LinkResponse]),
+        (status = 400, description = "Invalid pagination/sorting", body = crate::error::ErrorResponse),
         (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
         (status = 403, description = "Forbidden", body = crate::error::ErrorResponse),
         (status = 500, description = "Database error", body = crate::error::ErrorResponse)
@@ -78,8 +80,26 @@ pub async fn get_user_by_id(
 pub async fn list_links(
     State(state): State<AppState>,
     Extension(_claims): Extension<Claims>,
+    Query(params): Query<ListLinksQuery>,
 ) -> AppResult<Json<Vec<LinkResponse>>> {
-    let links = link_service::get_all_links(&state.db)
+    let page = params.page.unwrap_or(1);
+    let page_size = params.page_size.unwrap_or(20);
+    if page < 1 {
+        return Err(AppError::BadRequest("page must be >= 1".to_string()));
+    }
+    if page_size < 1 || page_size > 100 {
+        return Err(AppError::BadRequest("page_size must be between 1 and 100".to_string()));
+    }
+    let sort_by = params.sort_by.as_deref().unwrap_or("created_at");
+    if !matches!(sort_by, "created_at" | "click_count" | "title") {
+        return Err(AppError::BadRequest("sort_by must be one of: created_at, click_count, title".to_string()));
+    }
+    let sort_order = params.sort_order.as_deref().unwrap_or("desc");
+    if !sort_order.eq_ignore_ascii_case("asc") && !sort_order.eq_ignore_ascii_case("desc") {
+        return Err(AppError::BadRequest("sort_order must be asc or desc".to_string()));
+    }
+
+    let links = link_service::get_all_links(&state.db, page, page_size, sort_by, sort_order)
         .await
         .map_err(AppError::Database)?;
 
@@ -91,6 +111,9 @@ pub async fn list_links(
             original_url: link.original_url,
             title: link.title,
             click_count: link.click_count.unwrap_or(0),
+            is_active: link.is_active,
+            expires_at: link.expires_at.map(|dt| dt.to_rfc3339()),
+            created_at: link.created_at.to_rfc3339(),
         })
         .collect();
 

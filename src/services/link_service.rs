@@ -28,6 +28,7 @@ pub async fn create_short_link(
     original_url: &str,
     owner_id: Option<i64>,
     title: Option<String>,
+    ttl_seconds: Option<i64>,
 ) -> Result<Link, Error> {
     if let Some(owner_id) = owner_id {
         if let Some(existing) = link_repository::find_by_owner_and_original_url(pool, owner_id, original_url).await? {
@@ -37,7 +38,10 @@ pub async fn create_short_link(
 
     let id = link_repository::next_link_id(pool).await?;
     let short_code = encode_base62(id);
-    match link_repository::create_with_id(pool, id, owner_id, original_url, &short_code, title).await {
+    let expires_at = ttl_seconds
+        .and_then(|ttl| if ttl > 0 { Some(Utc::now() + chrono::Duration::seconds(ttl)) } else { None });
+
+    match link_repository::create_with_id(pool, id, owner_id, original_url, &short_code, title, expires_at).await {
         Ok(link) => Ok(link),
         Err(e) if is_unique_violation(&e) => {
             if let Some(owner_id) = owner_id {
@@ -72,12 +76,25 @@ pub async fn get_link_details(pool: &PgPool, short_code: &str) -> Result<Option<
     link_repository::find_by_short_code(pool, short_code).await
 }
 
-pub async fn get_user_links(pool: &PgPool, user_id: i64) -> Result<Vec<Link>, Error> {
-    link_repository::get_all_by_user(pool, user_id).await
+pub async fn get_user_links(
+    pool: &PgPool,
+    user_id: i64,
+    page: i64,
+    page_size: i64,
+    sort_by: &str,
+    sort_order: &str,
+) -> Result<Vec<Link>, Error> {
+    link_repository::get_all_by_user(pool, user_id, page, page_size, sort_by, sort_order).await
 }
 
-pub async fn get_all_links(pool: &PgPool) -> Result<Vec<Link>, Error> {
-    link_repository::get_all(pool).await
+pub async fn get_all_links(
+    pool: &PgPool,
+    page: i64,
+    page_size: i64,
+    sort_by: &str,
+    sort_order: &str,
+) -> Result<Vec<Link>, Error> {
+    link_repository::get_all(pool, page, page_size, sort_by, sort_order).await
 }
 
 pub async fn soft_delete_link(pool: &PgPool, user_id: i64, link_id: i64) -> Result<Option<Link>, Error> {
@@ -96,7 +113,26 @@ pub async fn get_daily_analytics(
 ) -> Result<Vec<DailyClickTotal>, Error> {
     link_repository::get_daily_analytics_by_user(pool, user_id, from_date, to_date).await
 }
-
+pub async fn advanced_search_links(
+    pool: &PgPool,
+    owner_id: i64,
+    min_clicks: Option<i64>,
+    max_clicks: Option<i64>,
+    from_date: Option<NaiveDate>,
+    to_date: Option<NaiveDate>,
+    domain: Option<String>,
+) -> Result<Vec<Link>, Error> {
+    link_repository::advanced_search_links(
+        pool,
+        owner_id,
+        min_clicks,
+        max_clicks,
+        from_date,
+        to_date,
+        domain,
+    )
+    .await
+}
 fn current_date_vn() -> NaiveDate {
     let offset = FixedOffset::east_opt(7 * 3600).unwrap_or_else(|| FixedOffset::east_opt(0).unwrap());
     Utc::now().with_timezone(&offset).date_naive()

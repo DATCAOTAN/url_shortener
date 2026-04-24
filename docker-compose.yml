@@ -41,10 +41,18 @@ services:
       JWT_REFRESH_SECRET: replace_with_strong_refresh_secret_32_chars_min
       ACCESS_TOKEN_EXPIRE: "900"
       REFRESH_TOKEN_EXPIRE: "2592000"
+    volumes:
+      - ./:/app
+      - cargo_target:/app/target
+      - cargo_registry:/usr/local/cargo/registry
+      - cargo_git:/usr/local/cargo/git
     ports:
       - "8080:8080"
-    command: ["sh", "-c", "sqlx migrate run && cargo run"]
+    command: ["sh", "-c", "sqlx migrate run && cargo watch -x run"]
   
 volumes:
   postgres_data:
   redis_data:
+  cargo_target:
+  cargo_registry:
+  cargo_git:

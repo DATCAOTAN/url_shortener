@@ -125,11 +125,12 @@ Authorization: Bearer {{userAccessToken}}
 
 {
   "original_url": "https://google.com",
-  "title": "Google"
+  "title": "Google",
+  "ttl_seconds": 3600
 }
 
 ### List my links
-GET {{baseUrl}}/links/my-links
+GET {{baseUrl}}/links/my-links?page=1&page_size=20&sort_by=created_at&sort_order=desc
 Authorization: Bearer {{userAccessToken}}
 
 ### Daily analytics (all my links)
@@ -162,9 +163,13 @@ DELETE {{baseUrl}}/admin/users/{{userId}}/hard
 Authorization: Bearer {{adminAccessToken}}
 
 ### List all links
-GET {{baseUrl}}/admin/links
+GET {{baseUrl}}/admin/links?page=1&page_size=20&sort_by=click_count&sort_order=desc
 Authorization: Bearer {{adminAccessToken}}
 
 ### Disable link by id
 DELETE {{baseUrl}}/admin/links/{{linkId}}
+Authorization: Bearer {{adminAccessToken}}
+
+### Advanced search links
+GET {{baseUrl}}/links/advanced-search?min_clicks=0&max_clicks=100&from=2026-01-01&to=2026-12-31&domain=google.com
 Authorization: Bearer {{adminAccessToken}}
