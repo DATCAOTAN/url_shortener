@@ -31,10 +31,12 @@ Cac file chinh lien quan:
 - src/handlers/link_handler.rs
 - src/handlers/admin_handler.rs
 - src/services/link_service.rs
+- src/services/cache_service.rs
 - src/repositories/link_repository.rs
 - src/models/link.rs
 - src/dtos/link.rs
 - src/state.rs
+- src/main.rs
 
 ---
 
@@ -90,39 +92,44 @@ Cooldown giai quyet van de nay bang cach:
 
 ### 3.2 Du lieu luu cooldown
 
-Trong src/state.rs, AppState co them:
-- cooldown: Arc<Mutex<HashMap<i64, Instant>>>
+Cooldown khong con luu in-memory trong process.
+
+Trong src/state.rs, AppState giu:
+- redis: deadpool_redis::Pool
+
+Trong src/main.rs:
+- REDIS_URL duoc doc tu env (mac dinh redis://127.0.0.1/)
+- REDIS_POOL_MAX duoc doc tu env (mac dinh 32)
+- Pool duoc tao bang deadpool_redis::Config + Runtime::Tokio1
 
 Y nghia:
-- Key: user_id
-- Value: thoi diem user vua tao link gan nhat
+- Moi request tao link se kiem tra cooldown truc tiep tren Redis key
+- Nhieu instance app co the dung chung 1 nguon cooldown
 
 ### 3.3 Luong xu ly khi tao link
 
 Trong handler create_link (src/handlers/link_handler.rs):
 
 1. Parse user_id tu JWT claim.
-2. Lay lock cooldown_map.
-3. Neu user da co timestamp cu:
-   - Tinh elapsed = now - last_request
-   - Neu elapsed < COOLDOWN_SECONDS (5):
-     - Tra loi 429 TooManyRequests
-4. Neu hop le:
-   - Ghi timestamp moi vao map
-5. Tiep tuc xu ly tao link trong DB.
-6. Neu DB loi:
-   - Xoa user khoi cooldown_map de user co the retry ngay.
+2. Tao key Redis: cooldown:user:{user_id}.
+3. Lay Redis connection tu pool: state.redis.get().await.
+4. Goi lenh atomically:
+   - SET cooldown:user:{user_id} 1 EX 5 NX
+5. Neu SET tra ve false (key da ton tai):
+   - Tra loi 429 TooManyRequests
+6. Neu SET tra ve true:
+   - Tiep tuc tao link trong DB.
+7. Key tu het han sau 5 giay nho EX, khong can lock mutex trong app.
 
 ### 3.4 Luu y quan trong
 
-Cooldown hien tai la in-memory:
-- Uu diem: nhanh, don gian.
-- Nhuoc diem:
-  - Restart server se mat du lieu cooldown.
-  - Neu scale nhieu instance, moi instance co map rieng.
-
-Neu can production-level:
-- Co the chuyen cooldown sang Redis de dung chung giua cac instance.
+Cooldown hien tai da la Redis-based:
+- Uu diem:
+   - Chia se duoc giua nhieu instance app.
+   - Khong can giu HashMap cooldown trong bo nho process.
+- Luu y:
+   - Phu thuoc vao Redis availability (Redis loi co the anh huong API tao link).
+   - TTL cooldown dang hardcode bang COOLDOWN_SECONDS = 5.
 
 ---
 
@@ -296,7 +303,7 @@ So voi 404:
 Cac tinh nang nay khong tach roi ma bo tro cho nhau:
 
 1. Tao link co cooldown
-   - Giam spam ngay tu dau vao.
+   - Giam spam ngay tu dau vao bang Redis key TTL.
 2. Link co TTL
    - Tu dong ket thuc hieu luc theo thoi gian.
 3. Admin co bo loc + phan trang + sap xep
@@ -330,12 +337,16 @@ Co the dung file test_api.http de test:
 
 ### 8.1 Cooldown
 
-Hien tai la in-memory, nen:
-- Mat du lieu khi restart
-- Khong dong bo da instance
+Hien tai da dung Redis key theo user_id + TTL:
+- Key format: cooldown:user:{user_id}
+- TTL hien tai: 5 giay
 
 Huong nang cap:
-- Chuyen sang Redis key theo user_id + TTL.
+- Dua COOLDOWN_SECONDS ra bien moi truong de de tuning theo moi truong.
+- Them metric cho:
+   - So lan bi 429
+   - So lan loi Redis pool/Redis command
+- Co the mo rong sang token bucket/sliding window neu can kiem soat burst chi tiet hon.
 
 ### 8.2 Phan trang
 
@@ -361,7 +372,7 @@ Bo tinh nang nay phu hop cho bai tap ung dung va moi truong thu nghiem:
 - Co co che song/chet cua link ro rang theo thoi gian
 
 Neu can dua len production, nen uu tien:
-1. Dua cooldown sang Redis
+1. Cau hinh cooldown linh hoat qua env va theo role (neu can)
 2. Day pagination/sorting xuong DB
-3. Bo sung metric/log cho cac case 410 va 429
+3. Bo sung metric/log cho cac case 410, 429 va Redis dependency
 4. Viet them integration test tu dong cho toan bo flow

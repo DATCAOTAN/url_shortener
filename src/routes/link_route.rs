@@ -13,7 +13,6 @@ pub fn routes() -> Router<AppState> {
 
     let protected_routes = Router::new()
         .route("/links", post(link_handler::create_link))
-        .route("/api/links/create", post(link_handler::create_link))
         .route("/links/analytics", get(link_handler::get_daily_analytics))
         .route("/links/my-links", get(link_handler::get_my_links))
         .route("/links/{id}", delete(link_handler::delete_link))

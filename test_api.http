@@ -25,6 +25,9 @@
 
 @fromDate = 2026-03-01
 @toDate = 2026-03-31
+@cooldownUrlStep1 = https://example.com/cooldown-step-1
+@cooldownUrlStep2 = https://example.com/cooldown-step-2
+@cooldownUrlStep3 = https://example.com/cooldown-step-3
 
 ##################################################
 ### PUBLIC
@@ -127,7 +130,7 @@ GET {{baseUrl}}/users/{{userId}}
 Authorization: Bearer {{userAccessToken}}
 
 ### Create short link with TTL (expires_in_seconds)
-POST {{baseUrl}}/api/links/create
+POST {{baseUrl}}/links
 Content-Type: application/json
 Authorization: Bearer {{userAccessToken}}
 
@@ -138,13 +141,52 @@ Authorization: Bearer {{userAccessToken}}
 }
 
 ### Create short link without TTL (vô thời hạn)
-POST {{baseUrl}}/api/links/create
+POST {{baseUrl}}/links
 Content-Type: application/json
 Authorization: Bearer {{userAccessToken}}
 
 {
   "original_url": "https://example.com/no-expire",
   "title": "No Expire Link"
+}
+
+### ------------------------------------------------
+### Redis cooldown quick checklist (create link)
+### ------------------------------------------------
+### Mục tiêu: xác minh cooldown Redis key cooldown:user:{user_id} với TTL 5 giây.
+### Cách chạy:
+### 1) Chạy step 1 -> expect 200.
+### 2) Chạy ngay step 2 (không chờ) -> expect 429 TooManyRequests.
+### 3) Chờ >= 5 giây rồi chạy step 3 -> expect 200.
+
+### [Cooldown Step 1] Create link (expect 200)
+POST {{baseUrl}}/links
+Content-Type: application/json
+Authorization: Bearer {{userAccessToken}}
+
+{
+  "original_url": "{{cooldownUrlStep1}}",
+  "title": "Cooldown Step 1"
+}
+
+### [Cooldown Step 2] Create ngay sau step 1 (expect 429)
+POST {{baseUrl}}/links
+Content-Type: application/json
+Authorization: Bearer {{userAccessToken}}
+
+{
+  "original_url": "{{cooldownUrlStep2}}",
+  "title": "Cooldown Step 2 - immediate"
+}
+
+### [Cooldown Step 3] Chờ >= 5s rồi create lại (expect 200)
+POST {{baseUrl}}/links
+Content-Type: application/json
+Authorization: Bearer {{userAccessToken}}
+
+{
+  "original_url": "{{cooldownUrlStep3}}",
+  "title": "Cooldown Step 3 - after wait"
 }
 
 ### List my links

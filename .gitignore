@@ -3,3 +3,5 @@
 .vscode/
 *.log
 scripts/api_batch_state.json
+/target
+.github/

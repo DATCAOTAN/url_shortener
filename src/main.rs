@@ -87,7 +87,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/", axum::routing::get(|| async { "URL Shortener API" }))
-        .route("/docs", axum::routing::get(|| async { docs::swagger_ui_page() }))
+        .route("/docs", axum::routing::get(|| async { docs::docs_home() }))
         .route("/docs/swagger", axum::routing::get(|| async { docs::swagger_ui_page() }))
         .route(
             "/api-docs/openapi.json",

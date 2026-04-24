@@ -19,7 +19,7 @@ const COOLDOWN_SECONDS: u32 = 5;
 
 #[utoipa::path(
     post,
-    path = "/api/links/create",
+    path = "/links",
     tag = "Links",
     security(("bearer_auth" = [])),
     request_body = CreateLinkRequest,
@@ -60,8 +60,7 @@ pub async fn create_link(
 
             let current_timestamp = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .map(|duration| duration.as_secs())
-                .unwrap_or(0);
+                .map(|duration| duration.as_secs())?;
 
             let expires_at = current_timestamp
                 .checked_add(ttl_seconds)
@@ -77,44 +76,35 @@ pub async fn create_link(
         None => None,
     };
 
-    // In-memory cooldown per user to block rapid repeated create requests.
-    let now = std::time::Instant::now();
-    {
-        let mut cooldown_map = state.cooldown.lock().await;
-
-        if let Some(last_request) = cooldown_map.get(&user_id) {
-            let elapsed = now.saturating_duration_since(*last_request).as_secs();
-            // If the user is still in cooldown window, reject with HTTP 429.
-            if elapsed < COOLDOWN_SECONDS as u64 {
-                let wait_for = COOLDOWN_SECONDS as u64 - elapsed;
-                return Err(AppError::TooManyRequests(format!(
-                    "Please wait {}s before creating another link",
-                    wait_for
-                )));
-            }
-        }
-
-        // Record the current attempt timestamp before processing DB write.
-        cooldown_map.insert(user_id, now);
-    }
     
-    let link = match link_service::create_short_link(
+    let cooldown_key = format!("cooldown:user:{}", user_id);
+    let mut conn = state.redis.get().await?;
+
+    // Cú pháp set custom cho crate `redis` thường dùng:
+    let is_set: bool = deadpool_redis::redis::cmd("SET")
+        .arg(&cooldown_key)
+        .arg("1")
+        .arg("EX")
+        .arg(COOLDOWN_SECONDS)
+        .arg("NX")
+        .query_async(&mut *conn)
+        .await?;
+
+    if !is_set {
+        return Err(AppError::TooManyRequests(format!(
+                    "Please wait {}s before creating another link",
+                    COOLDOWN_SECONDS
+                )));
+    } 
+    
+    let link = link_service::create_short_link(
         &state.db,
         &original_url,
         Some(user_id),
         title,
         expires_at,
     )
-    .await
-    {
-        Ok(link) => link,
-        Err(e) => {
-            // DB write failed: clear cooldown marker so client can retry immediately.
-            let mut cooldown_map = state.cooldown.lock().await;
-            cooldown_map.remove(&user_id);
-            return Err(AppError::Database(e));
-        }
-    };
+    .await?;
 
     Ok(Json(LinkResponse {
         id: link.id,
@@ -184,8 +174,7 @@ pub async fn get_my_links(
 ) -> AppResult<Json<Vec<LinkResponse>>> {
     let user_id = claims.sub.parse::<i64>().map_err(|_| AppError::Unauthorized("Invalid user ID".to_string()))?;
 
-    let links = link_service::get_user_links(&state.db, user_id).await
-        .map_err(AppError::Database)?;
+    let links = link_service::get_user_links(&state.db, user_id).await?;
 
     let response = links.into_iter().map(|link| LinkResponse {
         id: link.id,
@@ -271,8 +260,7 @@ pub async fn get_daily_analytics(
     }
 
     let totals = link_service::get_daily_analytics(&state.db, user_id, from_date, to_date)
-        .await
-        .map_err(AppError::Database)?;
+        .await?;
 
     let response = totals
         .into_iter()
