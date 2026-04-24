@@ -207,13 +207,24 @@ pub async fn advanced_search_links(
     from_date: Option<NaiveDate>,
     to_date: Option<NaiveDate>,
     domain: Option<String>,
+    is_active: Option<bool>,
 ) -> Result<Vec<Link>, Error> {
     let mut builder = QueryBuilder::<Postgres>::new(
         "SELECT id, owner_id, original_url, short_code, title, click_count, is_active, expires_at, created_at, updated_at FROM links WHERE owner_id = ",
     );
     builder.push_bind(owner_id);
 
-    builder.push(" AND (is_active IS NULL OR is_active = TRUE)");
+    match is_active {
+        Some(true) => {
+            builder.push(" AND (is_active IS NULL OR is_active = TRUE) AND (expires_at IS NULL OR expires_at > NOW())");
+        }
+        Some(false) => {
+            builder.push(" AND (is_active = FALSE OR expires_at <= NOW())");
+        }
+        None => {
+            builder.push(" AND (is_active IS NULL OR is_active = TRUE)");
+        }
+    }
 
     if let Some(min) = min_clicks {
         builder.push(" AND COALESCE(click_count, 0) >= ");

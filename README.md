@@ -163,6 +163,7 @@ Cap quyen admin hien tai:
 
 - Rate limit hien tai: in-memory window 60 giay, default 120 request/phut/client key.
 - Client key uu tien x-forwarded-for, roi x-real-ip, roi user-agent.
+- Cooldown tao link la co che rieng, dang dung Redis key `cooldown:user:{user_id}` voi TTL 5 giay.
 - CORS doc gia tri tu CORS_ALLOWED_ORIGINS, ho tro danh sach origin tach boi dau phay hoac *.
 
 ## 7. Test nhanh voi file HTTP
@@ -180,3 +181,8 @@ Thu tu chay goi y:
 
 - Neu doi role trong DB ma van bi loi Admin role required, nguyen nhan thuong la token cu chua role user.
 - Hay login lai de nhan token moi.
+
+## 9. Tai lieu bo sung
+
+- [FEATURES_EXPERIMENTAL_GUIDE.md](FEATURES_EXPERIMENTAL_GUIDE.md): Giai thich cac tinh nang thu nghiem (search, pagination, cooldown, TTL).
+- [REDIS_DEADPOOL_GUIDE.md](REDIS_DEADPOOL_GUIDE.md): Huong dan Redis + deadpool trong du an Rust nay.

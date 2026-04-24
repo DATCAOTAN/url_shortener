@@ -15,3 +15,18 @@ pub struct Link {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
+
+impl Link {
+    pub fn is_active_now(&self) -> bool {
+        let active = self.is_active.unwrap_or(true);
+        if !active {
+            return false;
+        }
+        if let Some(expires_at) = self.expires_at {
+            if expires_at <= Utc::now() {
+                return false;
+            }
+        }
+        true
+    }
+}

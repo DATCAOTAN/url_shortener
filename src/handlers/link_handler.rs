@@ -76,13 +76,25 @@ pub async fn create_link(
         .await
         .map_err(AppError::Database)?;
 
+    let mut custom_ttl = None;
+    if let Some(ttl) = payload.ttl_seconds {
+        if ttl > 0 {
+            custom_ttl = Some(ttl as u64);
+        }
+    }
+
+    if let Err(e) = cache_service::set_cached_url(&state.redis, &link.short_code, &link.original_url, custom_ttl).await {
+        tracing::warn!("Redis cache write error during creation: {:?}", e);
+    }
+
+    let is_active = Some(link.is_active_now());
     Ok(Json(LinkResponse {
         id: link.id,
         short_code: link.short_code,
         original_url: link.original_url,
         title: link.title,
         click_count: link.click_count.unwrap_or(0),
-        is_active: link.is_active,
+        is_active,
         expires_at: link.expires_at.map(|dt| dt.to_rfc3339()),
         created_at: link.created_at.to_rfc3339(),
     }))
@@ -111,11 +123,26 @@ pub async fn redirect_link(
     }
 
     match link_service::get_original_url(&state.db, &short_code).await {
-        Ok(Some(url)) => {
-            if let Err(e) = cache_service::set_cached_url(&state.redis, &short_code, &url).await {
+        Ok(Some(link)) => {
+            let mut custom_ttl = None;
+            if let Some(expires_at) = link.expires_at {
+                let now = chrono::Utc::now();
+                if expires_at > now {
+                    let remaining = (expires_at - now).num_seconds();
+                    if remaining > 0 {
+                        custom_ttl = Some(remaining as u64);
+                    } else {
+                        return Err(AppError::NotFound(format!("Link {} has expired", short_code)));
+                    }
+                } else {
+                    return Err(AppError::NotFound(format!("Link {} has expired", short_code)));
+                }
+            }
+
+            if let Err(e) = cache_service::set_cached_url(&state.redis, &short_code, &link.original_url, custom_ttl).await {
                 tracing::warn!("Redis cache write error: {:?}", e);
             }
-            Ok(Redirect::to(&url))
+            Ok(Redirect::to(&link.original_url))
         }
         Ok(None) => {
             if let Ok(Some(link)) = link_service::get_link_details(&state.db, &short_code).await {
@@ -179,15 +206,18 @@ pub async fn get_my_links(
 
     let response = links
         .into_iter()
-        .map(|link| LinkResponse {
-            id: link.id,
-            short_code: link.short_code,
-            original_url: link.original_url,
-            title: link.title,
-            click_count: link.click_count.unwrap_or(0),
-            is_active: link.is_active,
-            expires_at: link.expires_at.map(|dt| dt.to_rfc3339()),
-            created_at: link.created_at.to_rfc3339(),
+        .map(|link| {
+            let is_active = Some(link.is_active_now());
+            LinkResponse {
+                id: link.id,
+                short_code: link.short_code,
+                original_url: link.original_url,
+                title: link.title,
+                click_count: link.click_count.unwrap_or(0),
+                is_active,
+                expires_at: link.expires_at.map(|dt| dt.to_rfc3339()),
+                created_at: link.created_at.to_rfc3339(),
+            }
         })
         .collect();
 
@@ -337,21 +367,25 @@ pub async fn advanced_search_links(
         from_date,
         to_date,
         params.domain.clone(),
+        params.is_active,
     )
     .await
     .map_err(AppError::Database)?;
 
     let response = links
         .into_iter()
-        .map(|link| LinkResponse {
-            id: link.id,
-            short_code: link.short_code,
-            original_url: link.original_url,
-            title: link.title,
-            click_count: link.click_count.unwrap_or(0),
-            is_active: link.is_active,
-            expires_at: link.expires_at.map(|dt| dt.to_rfc3339()),
-            created_at: link.created_at.to_rfc3339(),
+        .map(|link| {
+            let is_active = Some(link.is_active_now());
+            LinkResponse {
+                id: link.id,
+                short_code: link.short_code,
+                original_url: link.original_url,
+                title: link.title,
+                click_count: link.click_count.unwrap_or(0),
+                is_active,
+                expires_at: link.expires_at.map(|dt| dt.to_rfc3339()),
+                created_at: link.created_at.to_rfc3339(),
+            }
         })
         .collect();
     Ok(Json(response))

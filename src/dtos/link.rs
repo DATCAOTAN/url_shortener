@@ -44,6 +44,7 @@ pub struct AdvancedSearchQuery {
     pub from: Option<String>,
     pub to: Option<String>,
     pub domain: Option<String>,
+    pub is_active: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, IntoParams)]

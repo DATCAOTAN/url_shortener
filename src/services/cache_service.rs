@@ -27,10 +27,14 @@ pub async fn set_cached_url(
     redis: &deadpool_redis::Pool,
     short_code: &str,
     original_url: &str,
+    custom_ttl: Option<u64>,
 ) -> Result<(), CacheError> {
     let mut conn = redis.get().await?;
     let cache_key = format!("{}{}", URL_CACHE_PREFIX, short_code);
-    conn.set_ex::<_, _, ()>(&cache_key, original_url, CACHE_TTL_SECONDS).await?;
+    let ttl = custom_ttl.unwrap_or(CACHE_TTL_SECONDS);
+    if ttl > 0 {
+        conn.set_ex::<_, _, ()>(&cache_key, original_url, ttl).await?;
+    }
     Ok(())
 }
 

@@ -105,15 +105,18 @@ pub async fn list_links(
 
     let response = links
         .into_iter()
-        .map(|link| LinkResponse {
-            id: link.id,
-            short_code: link.short_code,
-            original_url: link.original_url,
-            title: link.title,
-            click_count: link.click_count.unwrap_or(0),
-            is_active: link.is_active,
-            expires_at: link.expires_at.map(|dt| dt.to_rfc3339()),
-            created_at: link.created_at.to_rfc3339(),
+        .map(|link| {
+            let is_active = Some(link.is_active_now());
+            LinkResponse {
+                id: link.id,
+                short_code: link.short_code,
+                original_url: link.original_url,
+                title: link.title,
+                click_count: link.click_count.unwrap_or(0),
+                is_active,
+                expires_at: link.expires_at.map(|dt| dt.to_rfc3339()),
+                created_at: link.created_at.to_rfc3339(),
+            }
         })
         .collect();
 

@@ -55,7 +55,7 @@ pub async fn create_short_link(
     }
 }
 
-pub async fn get_original_url(pool: &PgPool, short_code: &str) -> Result<Option<String>, Error> {
+pub async fn get_original_url(pool: &PgPool, short_code: &str) -> Result<Option<Link>, Error> {
     if let Some(link) = link_repository::find_active_by_short_code(pool, short_code).await? {
         let today = current_date_vn();
         let pool = pool.clone();
@@ -65,7 +65,7 @@ pub async fn get_original_url(pool: &PgPool, short_code: &str) -> Result<Option<
                 tracing::warn!("Async analytics update failed: {:?}", e);
             }
         });
-        Ok(Some(link.original_url))
+        Ok(Some(link))
     } else {
         Ok(None)
     }
@@ -121,6 +121,7 @@ pub async fn advanced_search_links(
     from_date: Option<NaiveDate>,
     to_date: Option<NaiveDate>,
     domain: Option<String>,
+    is_active: Option<bool>,
 ) -> Result<Vec<Link>, Error> {
     link_repository::advanced_search_links(
         pool,
@@ -130,6 +131,7 @@ pub async fn advanced_search_links(
         from_date,
         to_date,
         domain,
+        is_active,
     )
     .await
 }
