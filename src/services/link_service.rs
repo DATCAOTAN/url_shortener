@@ -88,6 +88,18 @@ pub async fn admin_soft_delete_link(pool: &PgPool, link_id: i64) -> Result<Optio
     link_repository::soft_delete_by_id(pool, link_id).await
 }
 
+pub async fn advanced_search(
+    pool: &PgPool,
+    id_owner: i64,
+    min_clicks: Option<i64>,
+    max_clicks: Option<i64>,
+    from_date: Option<NaiveDate>,
+    to_date: Option<NaiveDate>,
+    is_active: Option<bool>,
+) -> Result<Vec<Link>, Error> {
+    link_repository::advanced_search(pool,id_owner, min_clicks, max_clicks, from_date, to_date, is_active).await
+}
+
 pub async fn get_daily_analytics(
     pool: &PgPool,
     user_id: i64,

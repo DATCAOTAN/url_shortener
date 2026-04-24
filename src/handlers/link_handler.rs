@@ -6,12 +6,14 @@ use axum::{
 };
 use crate::error::{AppError, AppResult};
 use crate::services::{link_service, cache_service};
-use crate::dtos::link::{CreateLinkRequest, LinkResponse, DeleteLinkResponse, DailyAnalyticsResponse};
+use crate::dtos::link::{AdvancedSearchRequest,CreateLinkRequest, LinkResponse, DeleteLinkResponse, DailyAnalyticsResponse};
 use crate::dtos::claims::Claims;
 use chrono::NaiveDate;
 use crate::state::AppState;
 use utoipa::ToSchema;
 use crate::utils::validation::{validate_title, validate_url};
+use std::env;
+
 // use crate::models::link::Link;
 
 #[utoipa::path(
@@ -23,7 +25,8 @@ use crate::utils::validation::{validate_title, validate_url};
     responses(
         (status = 200, description = "Create short link", body = LinkResponse),
         (status = 400, description = "Invalid input", body = crate::error::ErrorResponse),
-        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse)
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 429, description = "Too many requests", body = crate::error::ErrorResponse)
     )
 )]
 pub async fn create_link(
@@ -32,6 +35,20 @@ pub async fn create_link(
     Json(payload): Json<CreateLinkRequest>,
 ) -> AppResult<Json<LinkResponse>> {
     let user_id = claims.sub.parse::<i64>().map_err(|_| AppError::Unauthorized("Invalid user ID".to_string()))?;
+    let cooldown_seconds = env::var("LINK_CREATE_COOLDOWN")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .unwrap_or(5);
+
+    let allowed = cache_service::try_acquire_link_cooldown(&state.redis, user_id, cooldown_seconds)
+        .await
+        .map_err(|e| AppError::Internal(format!("Cooldown cache error: {e}")))?;
+
+    if !allowed {
+        return Err(AppError::TooManyRequests(
+            "Please wait before creating another link".to_string(),
+        ));
+    }
 
     if !validate_url(&payload.original_url) {
         return Err(AppError::BadRequest("Invalid URL (must be http/https)".to_string()));
@@ -51,6 +68,8 @@ pub async fn create_link(
         original_url: link.original_url,
         title: link.title,
         click_count: link.click_count.unwrap_or(0),
+        is_active: link.is_active,
+        created_at: link.created_at.to_rfc3339(),       
     }))
 }
 
@@ -113,6 +132,8 @@ pub async fn get_my_links(
         original_url: link.original_url,
         title: link.title,
         click_count: link.click_count.unwrap_or(0),
+        is_active: link.is_active,
+        created_at: link.created_at.to_rfc3339(),
     }).collect();
 
     Ok(Json(response))
@@ -200,5 +221,81 @@ pub async fn get_daily_analytics(
         })
         .collect();
 
+    Ok(Json(response))
+}
+#[utoipa::path(
+    get,
+    path = "/links/advanced-search",
+    tag = "Links",
+    security(("bearer_auth" = [])),
+    params(AdvancedSearchRequest),
+    responses(
+        (status = 200, description = "Search results", body = [LinkResponse]),
+        (status = 400, description = "Invalid query", body = crate::error::ErrorResponse),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse)
+    )
+)]
+pub async fn advanced_search(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(params): Query<AdvancedSearchRequest>,
+) -> AppResult<Json<Vec<LinkResponse>>> {
+    let user_id = claims
+        .sub
+        .parse::<i64>()
+        .map_err(|_| AppError::Unauthorized("Invalid user ID".to_string()))?;
+
+    if let (Some(min), Some(max)) = (params.min_clicks, params.max_clicks) {
+        if min > max {
+            return Err(AppError::BadRequest("min_clicks must be <= max_clicks".to_string()));
+        }
+    }
+
+    let from_date = match params.from_date.as_deref() {
+        Some(value) => Some(
+            NaiveDate::parse_from_str(value, "%Y-%m-%d")
+                .map_err(|_| AppError::BadRequest("Invalid from date".to_string()))?,
+        ),
+        None => None,
+    };
+
+    let to_date = match params.to_date.as_deref() {
+        Some(value) => Some(
+            NaiveDate::parse_from_str(value, "%Y-%m-%d")
+                .map_err(|_| AppError::BadRequest("Invalid to date".to_string()))?,
+        ),
+        None => None,
+    };
+
+    if let (Some(from), Some(to)) = (from_date, to_date) {
+        if from > to {
+            return Err(AppError::BadRequest("from must be <= to".to_string()));
+        }
+    }
+
+    let links = link_service::advanced_search(
+        &state.db,
+        user_id,
+        params.min_clicks,
+        params.max_clicks,
+        from_date,
+        to_date,
+        params.is_active,
+    )
+    .await
+    .map_err(AppError::Database)?;
+
+    let response = links
+        .into_iter()
+        .map(|link| LinkResponse {
+            id: link.id,
+            short_code: link.short_code,
+            original_url: link.original_url,
+            title: link.title,
+            click_count: link.click_count.unwrap_or(0),
+            is_active: link.is_active,
+            created_at: link.created_at.to_rfc3339(),
+        })
+        .collect();
     Ok(Json(response))
 }

@@ -15,6 +15,7 @@ pub fn routes() -> Router<AppState> {
         .route("/links", post(link_handler::create_link))
         .route("/links/analytics", get(link_handler::get_daily_analytics))
         .route("/links/my-links", get(link_handler::get_my_links))
+        .route("/links/advanced-search", get(link_handler::advanced_search))
         .route("/links/{id}", delete(link_handler::delete_link))
         .route_layer(middleware::from_fn(auth_middleware));
 

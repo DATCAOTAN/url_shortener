@@ -1,4 +1,4 @@
-use sqlx::{PgPool, Error, Postgres, Transaction};
+use sqlx::{PgPool, Error, Postgres, Transaction, QueryBuilder};
 use chrono::NaiveDate;
 use crate::models::link::Link;
 use crate::models::link_analytics::DailyClickTotal;
@@ -155,4 +155,44 @@ pub async fn get_daily_analytics_by_user(
     )
     .fetch_all(pool)
     .await
+}
+pub async fn advanced_search(pool: &PgPool,owner_id:i64,min_clicks:Option<i64>,max_clicks:Option<i64>,from_date:Option<NaiveDate>,to_date:Option<NaiveDate>,is_active:Option<bool>) -> Result<Vec<Link>, sqlx::Error> {
+    let mut builder = QueryBuilder::<Postgres>::new(
+        "SELECT id, owner_id, original_url, short_code, title, click_count, is_active, created_at, updated_at FROM links WHERE owner_id = ",
+    );
+    builder.push_bind(owner_id);
+
+    if let Some(active) = is_active {
+        if active {
+            builder.push(" AND (is_active IS NULL OR is_active = TRUE)");
+        } else {
+            builder.push(" AND is_active = FALSE");
+        }
+    }
+
+    if let Some(min) = min_clicks {
+        builder.push(" AND COALESCE(click_count, 0) >= ");
+        builder.push_bind(min);
+    }
+
+    if let Some(max) = max_clicks {
+        builder.push(" AND COALESCE(click_count, 0) <= ");
+        builder.push_bind(max);
+    }
+
+    if let Some(from) = from_date {
+        builder.push(" AND created_at::date >= ");
+        builder.push_bind(from);
+    }
+
+    if let Some(to) = to_date {
+        builder.push(" AND created_at::date <= ");
+        builder.push_bind(to);
+    }
+
+
+
+    builder.push(" ORDER BY created_at DESC");
+
+    builder.build_query_as::<Link>().fetch_all(pool).await
 }
